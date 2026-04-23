@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ClassLibrary1\RayCastVoxelizer.csproj" />
+    <ProjectReference Include="C:\Users\ipmpg\source\repos\DotRecast\src\DotRecast.Core\DotRecast.Core.csproj" />
+    <ProjectReference Include="C:\Users\ipmpg\source\repos\DotRecast\src\DotRecast.Recast\DotRecast.Recast.csproj" />
+	  <Compile Update="Form1.cs">
+		  <SubType>Form</SubType>
+	  </Compile>
+  </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="xcopy &quot;$(TargetDir)*.*&quot; &quot;$(SolutionDir)SiteHazardIdentifier\bin\Debug\&quot; /E /Y /I" />
+  </Target>
+
+</Project>
