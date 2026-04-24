@@ -65,7 +65,7 @@ namespace SiteHazardIdentifier
         public ExternalEvent LoadVoxels { get; internal set; }
         public ExternalEvent GenerateVoxels { get; internal set; }
         public IEnumerable<LightWeightVoxelElement> LightWeightVoxelElements { get=>this.boxElements; }
-
+        public IEnumerable<AABBElement> AABBElements { get => this.aabbElements; }
         private async void btnVoxelize_Click(object sender, EventArgs e)
         {
             if (this.MeshPath == null || MessageBox.Show("An existing mesh path found, rewrite it?", "Caution", MessageBoxButtons.YesNo) == DialogResult.Yes)
@@ -112,7 +112,7 @@ namespace SiteHazardIdentifier
                         strMesh = file;
                     }
                     else if (Path.GetFileName(file) == "materials.csv")//mat
-                    {
+                      {
                         strMaterial = file;
                     }
                     else if (Path.GetFileName(file) == "matElemRel.csv")//elemData
@@ -348,7 +348,7 @@ namespace SiteHazardIdentifier
         public RiskIdentifier identifier;
         private List<VoxelElement> voxelelements;
         private List<LightWeightVoxelElement> boxElements;
-
+        private List<AABBElement> aabbElements;
         private List<MeshElement> meshElements;
         private string tempMatPath;
         private string tempFolderPath;
@@ -358,7 +358,7 @@ namespace SiteHazardIdentifier
         {
             //this.LoadVoxels.Raise();
             OpenFileDialog ofd = new OpenFileDialog();
-            ofd.Filter = "voxel file|*.fireRiskVoxel|mesh file|*.fireRiskData|Lightweight Voxel file|*.firelitevox";
+            ofd.Filter = "voxel file|*.fireRiskVoxel|mesh file|*.fireRiskData|Lightweight Voxel file|*.firelitevox|AABB file|*.fireRiskAABB";
             if (ofd.ShowDialog() != DialogResult.OK)
             {
                 return;
@@ -586,6 +586,91 @@ namespace SiteHazardIdentifier
                         this.meshElements.Add(me);
                     }
                     txtInfo.Text += $"load {this.meshElements.Count} elements,Total triangles:{numTris}\r\n";
+                }
+                else if (Path.GetExtension(voxFileName) == ".fireRiskAABB") //mesh
+                {
+                    if (this.Voxelizer == null)
+                    {
+                        this.Voxelizer = new RevitMeshDocumenetConverter();
+                    }
+                    FastZip fastZip = new FastZip();
+                    // 生成临时文件夹路径
+                    string tempDirPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+                    fastZip.ExtractZip(voxFileName, tempDirPath, null);
+                    fastZip = null;
+                    GC.Collect();
+                    GC.WaitForPendingFinalizers();
+                    var voxelPath = Path.Combine(tempDirPath, Path.GetFileNameWithoutExtension(ofd.FileName) + ".txt");
+                    var finalPath = Path.Combine(Path.GetDirectoryName(ofd.FileName), Path.GetFileName(ofd.FileName));
+
+                    //Obtain file path
+                    string strMesh = null;
+                    string strMaterial = null;
+                    string strElemMatRel = null;
+                    foreach (var file in Directory.GetFiles(tempDirPath))
+                    {
+                        if (Path.GetExtension(file) == ".txt")//box
+                        {
+                            strMesh = file;
+                        }
+                        else if (Path.GetFileName(file) == "materials.csv")//mat
+                        {
+                            strMaterial = file;
+                        }
+                        else if (Path.GetFileName(file) == "matElemRel.csv")//elemData
+                        {
+                            strElemMatRel = file;
+                        }
+                        else if (Path.GetExtension(file) == ".matadata")//modeel info
+                        {
+                            using (StreamReader sr = new StreamReader(file))
+                            {
+                                var modeldata = sr.ReadToEnd();
+                                int numElems = int.Parse(modeldata.Split(':')[1]);
+                                initProgress(numElems);
+                                sr.Close();
+                            }
+                        }
+                        else
+                        {
+                            throw new Exception("Reading file error");
+                        }
+                    }
+                    //load material
+                    this.MatId_MatInfo = CSVHelper.ReadCSV(strMaterial);
+                    var newCol = "Reason (Less than 50 words.Use semicolon to replace commas)";
+                    if (!this.MatId_MatInfo.Columns.Contains(newCol))
+                        this.MatId_MatInfo.Columns.Add(newCol);
+                    dgvMat.DataSource = this.MatId_MatInfo;
+                    this.MatId_MatInfo.PrimaryKey = new DataColumn[1] { this.MatId_MatInfo.Columns[0] };
+                    this.ElemId_InternalId = new Dictionary<string, string>();
+                    //Load elem-mat-real
+                    using (StreamReader sr = new StreamReader(strElemMatRel, Encoding.Default))
+                    {
+                        var content = sr.ReadLine();
+                        while (!sr.EndOfStream)
+                        {
+                            content = sr.ReadLine();
+                            var items = content.Split(',');
+                            var elemid = items[0];
+                            var internalId = items[1];
+                            this.ElemId_InternalId.Add(elemid, internalId);
+                        }
+                    }
+                    int numTris = 0;
+                    //load element
+                    this.aabbElements= new List<AABBElement>();
+                    foreach (var ae in this.Voxelizer.LoadAABBElements(strMesh))
+                    {
+                        
+                        this.aabbElements.Add(ae);
+                    }
+                    txtInfo.Text += $"load {this.aabbElements.Count} elements,Total triangles:{numTris}\r\n";
+                    if (MessageBox.Show("visualize box?", "Hint", MessageBoxButtons.YesNo) == DialogResult.Yes)
+                    {
+                        this.VisualizeBox.Raise();
+                        //this.VisualizeBVHTree.Raise();
+                    }
                 }
                 //this.identifier = new RiskIdentifier(voxelElems, new List<Work>(), this.Voxelizer.VoxelSize);
             }
@@ -880,7 +965,79 @@ namespace SiteHazardIdentifier
             }
         }
 
-
+        private void UpdateWorkAndMaterials_AABB(out Dictionary<string, HazardMaterial> id_Mats)
+        {
+            //update work
+            List<Work> works = new List<Work>();
+            DataTable dt = dgvWBS.DataSource as DataTable;
+            //dt.AcceptChanges();
+            foreach (DataRow dr in dt.Rows)
+            {
+                var w = new Work();
+                w.Id = dr[0].ToString();
+                w.Name = dr[1].ToString();
+                w.Resources = dr[2].ToString().Split(';').ToList();
+                string strWorkType = dr[3].ToString();
+                switch (strWorkType)
+                {
+                    case "Construction":
+                        w.WorkType = WorkType.Construct;
+                        break;
+                    case "Demolition":
+                        w.WorkType = WorkType.Demolish;
+                        break;
+                }
+                w.ElementIds = dr[4].ToString().Split(';').ToList();
+                w.Set_Start(Convert.ToDateTime(dr[5]));
+                w.Set_Finish(Convert.ToDateTime(dr[6]));
+                //set work fire info
+                double fireProtection = Convert.ToDouble(txtRangeFire.Text);
+                double gasProtection = Convert.ToDouble(txtRangeFire.Text);
+                w.Combustible = (dr[7].ToString() == "Yes" || dr[9].ToString() == "Yes" ? true : false);
+                w.FireProtectionRange = fireProtection;
+                if (dr[8].ToString() == "Yes")//work emit sparks
+                {
+                    w.EmitSparks = true;
+                    w.FireProtectionRange = Math.Max(w.FireProtectionRange, fireProtection);
+                }
+                if (dr[9].ToString() == "Yes")//work contains gas
+                {
+                    w.EmitGas = true;
+                    w.FireProtectionRange = Math.Max(w.FireProtectionRange, gasProtection);
+                    w.TimeBuffer = new TimeSpan(int.Parse(this.txtTimeBuffer.Text), 0, 0, 0);
+                }
+                //set work protection range
+                works.Add(w);
+            }
+            this.works = works;
+            //Update material
+            id_Mats = new Dictionary<string, HazardMaterial>();
+            var dtMat = dgvMat.DataSource as DataTable;
+            dtMat.AcceptChanges();
+            foreach (DataRow dr in dtMat.Rows)
+            {
+                var data = dr.ItemArray;
+                var id = data[0].ToString();
+                var name = data[1].ToString();
+                var isConbustable = (dr.ItemArray[2].ToString() == "Yes" ? true : false);
+                var mat = new HazardMaterial(id, name, isConbustable);
+                id_Mats.Add(id, mat);
+            }
+            this.identifier = new RiskIdentifier(this.aabbElements, this.works, this.Voxelizer.VoxelSize);
+            //attatch material to elements
+            foreach (var elemInfo in this.identifier.ElemAABBRel.Values)
+            {
+                var elemId = elemInfo.ElementId;
+                elemInfo.Materials = new List<HazardMaterial>();
+                var eleminternalName = ElemId_InternalId[elemId];
+                var matIds = eleminternalName.Split('_');
+                foreach (var matId in matIds)
+                {
+                    var mat = id_Mats[matId];
+                    elemInfo.Materials.Add(mat);
+                }
+            }
+        }
         private async void btnAnalysis2_Click(object sender, EventArgs e)
         {
             var sw = Stopwatch.StartNew();
@@ -895,9 +1052,13 @@ namespace SiteHazardIdentifier
             {
                 UpdateWorkAndMaterials_Mesh(out id_Mats);
             }
-            else
+            else if(this.boxElements != null && this.boxElements.Count != 0)
             {
                 UpdateWorkAndMaterials_VoxBox(out id_Mats);
+            }
+            else 
+            {
+                UpdateWorkAndMaterials_AABB(out id_Mats);
             }
             sw.Stop();
             totalTime += sw.Elapsed.TotalSeconds;
@@ -926,9 +1087,13 @@ namespace SiteHazardIdentifier
                 {
                     identifier.IdentifyGlobalFireHazard_Mesh(double.Parse(txtRangeFire.Text), this.ElemId_InternalId, progress);
                 }
-                else
+                else if(this.boxElements != null && this.boxElements.Count != 0)
                 {
                     identifier.IdentifyGlobalFireHazard_VoxelBox2(double.Parse(txtRangeFire.Text), this.ElemId_InternalId, progress);
+                }
+                else
+                {
+                    identifier.IdentifyGlobalFireHazard_AABB(double.Parse(txtRangeFire.Text), this.ElemId_InternalId, progress);
                 }
             });
             await tks;
@@ -1028,7 +1193,140 @@ namespace SiteHazardIdentifier
             }
         }
 
+        private async void btnAABB_Click(object sender, EventArgs e)
+        {
+            var sw = Stopwatch.StartNew();
+            double totalTime = 0;
+            Dictionary<string, HazardMaterial> id_Mats = null;
 
+            if (this.voxelelements != null && this.voxelelements.Count != 0)
+            {
+                UpdateWorkAndMaterials(out id_Mats);
+            }
+            else if (this.meshElements != null && this.meshElements.Count != 0)
+            {
+                UpdateWorkAndMaterials_Mesh(out id_Mats);
+            }
+            else
+            {
+                UpdateWorkAndMaterials_VoxBox(out id_Mats);
+            }
+            sw.Stop();
+            totalTime += sw.Elapsed.TotalSeconds;
+            this.txtInfo.Text += $"\r\n Initialized completed, time elapsed(s):{sw.Elapsed.TotalSeconds}";
+            sw.Restart();
+            this.identifier.MaterialMap = id_Mats;
+
+            //generate chunk
+            IProgress<(int, string)> progress = new Progress<(int, string)>(parcent =>
+            {
+                prog.Value = parcent.Item1;
+                this.Text = parcent.Item2;
+            });
+            int numFireWork = this.works.Where(c => c.EmitSparks).Count();
+            this.prog.Value = 0;
+            this.prog.Maximum = 100;
+            //var combId_Elems = identifier.IdentifyGlobalFireHazard(double.Parse(txtRangeFire.Text), this.ElemId_InternalId, progress); ;
+            Task tks = Task.Run(() =>
+            {
+                identifier.IdentifyGlobalFireHazard_AABB(double.Parse(txtRangeFire.Text), this.ElemId_InternalId, progress);
+            });
+            await tks;
+            sw.Stop();
+            totalTime = sw.Elapsed.TotalSeconds;
+            DataTable dtElemHazardLevel = new DataTable();
+            dtElemHazardLevel.Columns.Add("Hazard level");
+            dtElemHazardLevel.Columns.Add("Number of elements");
+            int elemExtreme = 0;
+            int elemHigh = 0;
+            int elemMedium = 0;
+            int elemLow = 0;
+            foreach (var elem in identifier.IternateElements())
+            {
+                if (elem.Combinations.Any(c => c.HazardLevel == CombinationHazardLevel.Extreme))
+                {
+                    elemExtreme++;
+                }
+                else if (elem.Combinations.Any(c => c.HazardLevel == CombinationHazardLevel.High))
+                {
+                    elemHigh++;
+                }
+                else if (elem.Combinations.Any(c => c.HazardLevel == CombinationHazardLevel.Medium))
+                {
+                    elemMedium++;
+                }
+                else
+                {
+                    elemLow++;
+                }
+            }
+            dtElemHazardLevel.Rows.Add("Extreme", elemExtreme);
+            dtElemHazardLevel.Rows.Add("High", elemHigh);
+            dtElemHazardLevel.Rows.Add("Medium", elemMedium);
+            dtElemHazardLevel.Rows.Add("Low", elemLow);
+            dgvChunks.DataSource = dtElemHazardLevel;
+            txtInfo.Text += $"\r\n Time elapsed for fire hazard analysis: {sw.Elapsed.TotalSeconds}";
+            txtInfo.Text += $"\r\n Totla elapsed time: {totalTime}";
+            if (MessageBox.Show("Output element data", "Hint", MessageBoxButtons.YesNo) == DialogResult.Yes)
+            {
+                int index = 0;
+                var dtResult = new DataTable();
+                dtResult.Columns.Add("Hazard level");
+                dtResult.Columns.Add("Id");
+                var dcDis = dtResult.Columns.Add("Distance");
+                dcDis.DataType = typeof(double);
+                dtResult.Columns.Add("Ignition Source");
+                dtResult.Columns.Add("Combustible Activities");
+                dtResult.Columns.Add("Combustible Materials");
+                dtResult.Columns.Add("Hazardous level");
+                foreach (var elem in identifier.IternateElements())
+                {
+                    var elemId = elem.ElementId;
+                    foreach (var combo in elem.Combinations)
+                    {
+                        string strIgnitionSource = "";
+                        if (combo.IngntionSource != null)
+                        {
+                            strIgnitionSource = $"{combo.IngntionSource.Id}_{combo.IngntionSource.Name}";
+                        }
+                        string strCombustibleWorks = "";
+                        if (combo.CombustibleWorks.Count != 0)
+                        {
+                            List<string> combWorkInfo = new List<string>();
+                            foreach (var wc in combo.CombustibleWorks)
+                            {
+                                combWorkInfo.Add($"{wc.Id}_{wc.Name}");
+                            }
+                            strCombustibleWorks = string.Join(";", combWorkInfo);
+                        }
+                        string strCombustibleMaterial = "";
+                        if (combo.CombustibleMaterials.Count != 0)
+                        {
+                            List<string> combMat = new List<string>();
+                            foreach (var m in combo.CombustibleMaterials)
+                            {
+                                combMat.Add($"{m.Id}_{m.Name}");
+                            }
+                            strCombustibleMaterial = string.Join(";", combMat);
+                        }
+                        dtResult.Rows.Add(index, elemId, combo.Distance, strIgnitionSource, strCombustibleWorks, strCombustibleMaterial, combo.HazardLevel);
+                    }
+                    index += 1;
+                }
+                SaveFileDialog sfg = new SaveFileDialog();
+                sfg.Filter = "csv file|*.csv";
+                if (sfg.ShowDialog() == DialogResult.OK)
+                {
+                    using (var writer = new StreamWriter(sfg.FileName, false, Encoding.Default))
+                    {
+                        writer.Write(CSVHelper.table2CSV(dtResult));
+                        writer.Flush();
+                        writer.Close();
+                    }
+                    Process.Start("explorer.exe", $"/select,\"{sfg.FileName}\"");
+                }
+            }
+        }
 
 
 
@@ -1413,6 +1711,160 @@ namespace SiteHazardIdentifier
                     streamWriter.Close();
                 }
                 Process.Start("explorer.exe", $"/select,\"{sfg.FileName}\"");
+            }
+        }
+
+        private void btnGenAABB_Click(object sender, EventArgs e)
+        {
+            if (this.MeshPath == null || MessageBox.Show("An existing mesh path found, rewrite it?", "Caution", MessageBoxButtons.YesNo) == DialogResult.Yes)
+            {
+                OpenFileDialog opendiag = new OpenFileDialog();
+                opendiag.Filter = "Mesh file|*.fireRiskData";
+                if (opendiag.ShowDialog() == DialogResult.OK && opendiag.FileName != string.Empty)
+                {
+                    this.MeshPath = opendiag.FileName;
+                }
+                else
+                {
+                    return;
+                }
+            }
+            SaveFileDialog ofd = new SaveFileDialog();
+            ofd.Title = "Choose a location to save AABB elements";
+            ofd.Filter = "AABB element files|*.fireRiskAABB";
+            if (ofd.ShowDialog() == DialogResult.OK)
+            {
+                this.Voxelizer = new RevitMeshDocumenetConverter() { Origin = Vec3.Zero };
+                int numElemVoxelized = 0;
+                var voxeSize = double.Parse(this.txtVoxSize.Text);
+                this.Voxelizer.VoxelSize = voxeSize;
+                //unpack
+                FastZip fastZip = new FastZip();
+                // 生成临时文件夹路径
+                string tempDirPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+                fastZip.ExtractZip(this.MeshPath, tempDirPath, null);
+                fastZip = null;
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                var voxelPath = Path.Combine(tempDirPath, Path.GetFileNameWithoutExtension(ofd.FileName) + ".txt");
+                var finalPath = Path.Combine(Path.GetDirectoryName(ofd.FileName), Path.GetFileName(ofd.FileName));
+
+                //Obtain file path
+                string strMesh = null;
+                string strMaterial = null;
+                string strElemMatRel = null;
+                foreach (var file in Directory.GetFiles(tempDirPath))
+                {
+                    if (Path.GetExtension(file) == ".txt")//mesh
+                    {
+                        strMesh = file;
+                    }
+                    else if (Path.GetFileName(file) == "materials.csv")//mat
+                    {
+                        strMaterial = file;
+                    }
+                    else if (Path.GetFileName(file) == "matElemRel.csv")//elemData
+                    {
+                        strElemMatRel = file;
+                    }
+                    else if (Path.GetExtension(file) == ".matadata")//modeel info
+                    {
+                        using (StreamReader sr = new StreamReader(file))
+                        {
+                            var modeldata = sr.ReadToEnd();
+                            int numElems = int.Parse(modeldata.Split(':')[1]);
+                            initProgress(numElems);
+                            sr.Close();
+                        }
+                    }
+                    else
+                    {
+                        throw new Exception("Reading file error");
+                    }
+                }
+                Stopwatch sw = new Stopwatch();
+                BackgroundWorker bw = new BackgroundWorker();
+                bw.WorkerSupportsCancellation = true;
+                List<AABBElement> elements = new List<AABBElement>();
+                bw.DoWork += ((a, h) =>
+                {
+                    sw.Start();
+                    //voxelize
+                    foreach (var me in RevitMeshDocumenetConverter.CreateMeshElement(strMesh))
+                    //foreach (var me in this.Voxelizer.VoxelizeReportTime(strMesh, voxelPath))
+                    {
+                        var boxElem = new AABBElement(me);
+                        elements.Add(boxElem);
+                        numElemVoxelized += 1;
+                        if (numElemVoxelized % 10 == 0)
+                        {
+                            prog.BeginInvoke(new Action(() =>
+                            {
+                                prog.Value = numElemVoxelized;
+                                this.Text = $"已完成{numElemVoxelized}个,剩余{prog.Maximum}个";
+                            }));
+                            //Thread.Sleep(1);
+                        }
+                    }
+                });
+                bw.ProgressChanged += ((a, b) =>
+                {
+                    prog.Value += 1;
+                    this.Text = $"已完成{prog.Value}个,剩余{prog.Maximum}个";
+                });
+                bw.RunWorkerCompleted += ((a, b) =>
+                {
+                    try
+                    {
+                        sw.Stop();
+                        prog.Value = prog.Maximum;
+                        //generate a new file zip
+                        var saveVoxPath = Path.GetDirectoryName(voxelPath);
+                        var voxFileName = Path.GetFileNameWithoutExtension(voxelPath);
+                        //write box data
+                        using(var saver=new StreamWriter(voxelPath, false, Encoding.Default))
+                        {
+                            foreach (var elem in elements)
+                            {
+                                saver.WriteLine(elem.ElementId);
+                                saver.WriteLine(elem.Min.ToString());
+                                saver.WriteLine(elem.Max.ToString());
+                                
+                            }
+                            saver.Flush();
+                            saver.Close();
+                        }
+
+                        //delete mesh
+                        if(voxelPath!=strMesh)
+                            File.Delete(strMesh);
+                        //create a new zip
+                        FastZip zip = new FastZip();
+                        zip.CreateZip(finalPath, tempDirPath, true, "");
+                        //remove temp file path
+                        Directory.Delete(tempDirPath, true);
+                        MessageBox.Show($"Voxelization Done,time elapsed:{sw.Elapsed.TotalSeconds} s");
+                        txtInfo.Text += "\r\n";
+                        txtInfo.Text += $"time Gen GridPts{this.Voxelizer.timeGenGridPts}," +
+                        $"time Gen Vox{this.Voxelizer.timeGenVoxels}," +
+                        $"mergeVox:{this.Voxelizer.timeMergeVoxels}," +
+                        $"fillVox{this.Voxelizer.timeFillVoxels}";
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(ex.Message + ex.StackTrace);
+                    }
+                    //
+                });
+                try
+                {
+                    bw.RunWorkerAsync();
+
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(ex.Message + ex.StackTrace);
+                }
             }
         }
     }

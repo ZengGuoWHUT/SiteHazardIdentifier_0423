@@ -469,7 +469,7 @@ namespace SiteHazardIdentifier
             }
 
         }
-
+       
         public IEnumerable<VoxelElement> Voxelize(string meshPath, string savePath)
         {
             var voxDoc = new VoxelDocument();
@@ -691,7 +691,27 @@ namespace SiteHazardIdentifier
                 //Read VoxelSize
             }
         }
+        public IEnumerable<AABBElement> LoadAABBElements(string path)
+        {
+            using (var sr = new StreamReader(path))
+            {
+                //load voxel info
+                while (!sr.EndOfStream)
+                {
+                    string elemId = sr.ReadLine();
+                    string[] strMinData = sr.ReadLine().Split(',');
+                    AABBElement aabb = new AABBElement() { ElementId = elemId };
+                    aabb.Min =new Vec3(double.Parse(strMinData[0]), double.Parse(strMinData[1]), double.Parse(strMinData[2]));
+                    strMinData = sr.ReadLine().Split(',');
+                    aabb.Max =new Vec3(double.Parse(strMinData[0]), double.Parse(strMinData[1]), double.Parse(strMinData[2]));
+                    yield return aabb;
 
+                }
+                sr.Close();
+
+                //Read VoxelSize
+            }
+        }
 
 
     }

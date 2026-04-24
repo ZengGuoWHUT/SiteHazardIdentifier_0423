@@ -1,5 +1,7 @@
-﻿using SiteHazardIdentifier;
+﻿using Autodesk.Revit.DB.Architecture;
+using SiteHazardIdentifier;
 using System;
+using System.CodeDom;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
@@ -139,6 +141,14 @@ namespace RevitVoxelzation
             return (Col == other.Col && Row == other.Row && Layer == other.Layer);
             //throw new NotImplementedException();
         }
+        public static CellIndex3D operator +(CellIndex3D x, CellIndex3D y)
+        {
+            return new CellIndex3D(x.Col + y.Col, x.Row + y.Row, x.Layer + y.Layer);
+        }
+        public static CellIndex3D operator -(CellIndex3D x, CellIndex3D y)
+        {
+            return new CellIndex3D(x.Col - y.Col, x.Row - y.Row, x.Layer - y.Layer);
+        }
         public override int GetHashCode()
         {
             unchecked
@@ -150,6 +160,10 @@ namespace RevitVoxelzation
                 return hash;
             }
             //return base.GetHashCode();
+        }
+        public double GetHorizontalLen()
+        {
+            return Math.Sqrt(Math.Pow(this.Col, 2) + Math.Pow(this.Row, 2));
         }
         public override string ToString()
         {
@@ -1704,6 +1718,10 @@ namespace RevitVoxelzation
         {
             return Math.Sqrt(GetSquareLen());
         }
+        public double GetHorizontalLen()
+        {
+            return Math.Sqrt(Math.Pow(this.X, 2) + Math.Pow(this.Y, 2));
+        }
         public Vec3 Normalize()
         {
             double dblLen = this.GetLength();
@@ -2680,7 +2698,37 @@ namespace RevitVoxelzation
         /// <param name="fillVoxels"></param>
     }
 
+    public class AABBElement
+    {
+        public string ElementId { get; set; }
+        public string Name { get; set; }
+        public string Category { get; set; }
+        public Vec3 Min { get; set; } = null;
+        public Vec3 Max { get; set; } = null;
+        public bool IsSupportElement { get; set; } = false;
+        public bool IsObstructElement { get; set; } = true;
+        public bool IsTransportElement { get; set; } = false;
+        public bool IsActive { get; set; } = true;
+        public AABBElement()
+        {
 
+        }
+        public AABBElement(MeshElement meshElement)
+        {
+            this.ElementId = meshElement.ElementId;
+            this.Name = meshElement.Name;
+            this.Category = meshElement.Category;
+            this.IsActive = meshElement.IsActive;
+            this.IsSupportElement= meshElement.IsSupportElem;
+            this.IsTransportElement = meshElement.isTransport;
+            if(meshElement.TryGetAABB(out var min,out var max))
+            {
+                this.Max = max;
+                this.Min = min;
+            }
+           
+        }
+    }
     public class CompressedVoxelDocument
     {
         public Dictionary<int,int> VoxelHight { get; set; }

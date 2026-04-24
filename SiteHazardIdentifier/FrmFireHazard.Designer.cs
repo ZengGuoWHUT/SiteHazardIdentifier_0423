@@ -55,6 +55,7 @@
             this.btnAnalysis2 = new System.Windows.Forms.Button();
             this.Visualize = new System.Windows.Forms.GroupBox();
             this.btnElemTemporalTest = new System.Windows.Forms.Button();
+            this.btnGenAABB = new System.Windows.Forms.Button();
             this.groupBox2.SuspendLayout();
             this.groupBox3.SuspendLayout();
             this.tabControl1.SuspendLayout();
@@ -167,7 +168,7 @@
             this.tabPage2.Location = new System.Drawing.Point(4, 28);
             this.tabPage2.Name = "tabPage2";
             this.tabPage2.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPage2.Size = new System.Drawing.Size(868, 350);
+            this.tabPage2.Size = new System.Drawing.Size(868, 378);
             this.tabPage2.TabIndex = 1;
             this.tabPage2.Text = "Materials";
             this.tabPage2.UseVisualStyleBackColor = true;
@@ -183,7 +184,7 @@
             this.dgvMat.Name = "dgvMat";
             this.dgvMat.RowHeadersWidth = 62;
             this.dgvMat.RowTemplate.Height = 30;
-            this.dgvMat.Size = new System.Drawing.Size(862, 344);
+            this.dgvMat.Size = new System.Drawing.Size(862, 372);
             this.dgvMat.TabIndex = 0;
             // 
             // txtInfo
@@ -226,6 +227,7 @@
             // 
             // groupBox4
             // 
+            this.groupBox4.Controls.Add(this.btnGenAABB);
             this.groupBox4.Controls.Add(this.btnGetMesh);
             this.groupBox4.Controls.Add(this.btnVoxelize);
             this.groupBox4.Controls.Add(this.txtVoxSize);
@@ -349,6 +351,16 @@
             this.btnElemTemporalTest.UseVisualStyleBackColor = true;
             this.btnElemTemporalTest.Click += new System.EventHandler(this.btnElemTemporalTest_Click);
             // 
+            // btnGenAABB
+            // 
+            this.btnGenAABB.Location = new System.Drawing.Point(636, 22);
+            this.btnGenAABB.Name = "btnGenAABB";
+            this.btnGenAABB.Size = new System.Drawing.Size(169, 30);
+            this.btnGenAABB.TabIndex = 4;
+            this.btnGenAABB.Text = "Generate AABB";
+            this.btnGenAABB.UseVisualStyleBackColor = true;
+            this.btnGenAABB.Click += new System.EventHandler(this.btnGenAABB_Click);
+            // 
             // FrmFireHazard
             // 
             this.ClientSize = new System.Drawing.Size(1502, 850);
@@ -413,5 +425,6 @@
         private System.Windows.Forms.Button btnAnalysis2;
         private System.Windows.Forms.GroupBox Visualize;
         private System.Windows.Forms.Button btnElemTemporalTest;
+        private System.Windows.Forms.Button btnGenAABB;
     }
 }

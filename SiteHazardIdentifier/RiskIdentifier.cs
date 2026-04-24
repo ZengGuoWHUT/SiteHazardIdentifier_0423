@@ -40,7 +40,7 @@ namespace SiteHazardIdentifier
         public Dictionary<string, HazardVoxelElementInfo> ElemVoxRel { get; set; }
         public Dictionary<string, HazardMeshElementInfo> ElemMeshRel { get; set; }
         public Dictionary<string, HazardBoxElementInfo> ElemBoxRel { get; set; }
-
+        public Dictionary<string, HazardAABBElementInfo> ElemAABBRel { get; set; }
         public Dictionary<string, HazardMaterial> MaterialMap { get; set; } = new Dictionary<string, HazardMaterial>();
         public List<Work> Works { get; set; }
         public double VoxelSize { get; set; }
@@ -150,6 +150,36 @@ namespace SiteHazardIdentifier
             this.ElemBoxRel = elemeId_boxes;
         }
 
+        public RiskIdentifier(List<AABBElement> boxElems, List<Work> works, double voxelSize)
+        {
+
+            this.Works = works.OrderBy(c => c.Get_Start()).ToList();
+            this.VoxelSize = voxelSize;
+            //map work and elementid
+            var ElemWorkRel = new Dictionary<string, List<Work>>();
+            WorkMap = new Dictionary<string, Work>();
+            foreach (var work in works)
+            {
+                WorkMap.Add(work.Id, work);
+                foreach (var elemId in work.ElementIds)
+                {
+                    if (!ElemWorkRel.ContainsKey(elemId))
+                    {
+                        ElemWorkRel.Add(elemId, new List<Work>());
+                    }
+                    ElemWorkRel[elemId].Add(work);
+                }
+            }
+            //map elemId and voxels
+            Dictionary<string, HazardAABBElementInfo> elemeId_AABBs = new Dictionary<string, HazardAABBElementInfo>();
+            foreach (var ve in boxElems)
+            {
+                if (ElemWorkRel.ContainsKey(ve.ElementId))
+                    elemeId_AABBs.Add(ve.ElementId, new HazardAABBElementInfo(ve, ElemWorkRel[ve.ElementId]));
+            }
+            this.ElemAABBRel = elemeId_AABBs;
+        }
+
         public IEnumerable<_4DElement> IternateElements()
         {
             if (this.ElemVoxRel != null)
@@ -162,11 +192,16 @@ namespace SiteHazardIdentifier
                 foreach (var m in this.ElemMeshRel.Values)
                     yield return m;
             }
-            else
+            else if(this.ElemBoxRel!= null)
             {
                 foreach (var m in this.ElemBoxRel.Values)
                     yield return m;
             }
+            else if(this.ElemAABBRel != null)
+            {
+                foreach (var m in this.ElemAABBRel.Values)
+                    yield return m;
+            } 
 
         }
 
@@ -463,7 +498,86 @@ namespace SiteHazardIdentifier
                     progress.Report((percentage, $"{elemId + 1} elements scanned, total:{numElems}"));
             }
         }
-       
+        public void IdentifyGlobalFireHazard_AABB(double defaultFireRange, Dictionary<string, string> elemId_InternalId, IProgress<(int, string)> progress)
+        {
+            //update elem index
+            int i = 0;
+            foreach (var elem in this.ElemAABBRel.Values)
+            {
+                elem.Combinations = new List<HazardCombination>();
+                elem.UpdateIndex(i);
+                i += 1;
+            }
+            var elemTemp = this.ElemAABBRel.Values.ToList();
+            var result = new List<HazardCombination>();
+
+            //get combustible elements
+            List<Work> igntionWorks = new List<Work>();
+            foreach (var work in this.Works)
+            {
+                if (work.EmitSparks)
+                {
+                    igntionWorks.Add(work);
+                }
+            }
+
+            bool[] elemIdxUnderFire = new bool[elemTemp.Count];
+            //crereaete combo
+            for (int fire = 0; fire <= igntionWorks.Count - 1; fire++)
+            {
+                var workFire = igntionWorks[fire];
+                DateTime fireSt = workFire.Get_Start();
+                DateTime fireEd = workFire.Get_Finish(true);
+                List<HazardAABBElementInfo> ignitionElems = new List<HazardAABBElementInfo>();
+                foreach (var elemId in workFire.ElementIds)
+                {
+                    if (this.ElemAABBRel.TryGetValue(elemId, out var elem))
+                    {
+                        ignitionElems.Add(elem);
+                        //ignite ignition source
+                        elem.Ignited = true;
+                    }
+                }
+                //find active element
+                List<HazardAABBElementInfo> activeElem = new List<HazardAABBElementInfo>();
+                foreach (var elem in elemTemp)
+                {
+                    if (!elem.IsElementVoidDuringWork(workFire))
+                    {
+                        activeElem.Add(elem);
+                        //reset ignitino status
+                        elem.Ignited = false;
+                    }
+                }
+                // crerate a tree
+                HazardBVHTree tree = new HazardBVHTree();
+                tree.Build(activeElem, 4);
+                //try ignite elements
+                List<HazardBoxElementInfo> elemOnFire = new List<HazardBoxElementInfo>();
+                //foreach (var elem_dis in SpatialSearchTool.GetElementsWithinDistance(ignitionElems, activeElem, tree, defaultFireRange))
+               foreach (var elem_dis in SpatialSearchTool.GetElementsWithinDistance(ignitionElems, activeElem, defaultFireRange))
+               {
+                    var elem = elem_dis.elem;
+                    var dis = elem_dis.distance;
+                    elem.DistanceToFire = dis;
+                    elemIdxUnderFire[elem.GetIndex()] = true;
+                    //check elem linking to current element
+                    var combo = new HazardCombination(elem, workFire) { Distance = dis };
+                    elem.Combinations.Add(combo);
+                }
+                //tempCheck
+                progress.Report(((int)Math.Round((double)fire / igntionWorks.Count * 100), $"{fire} Ignition work processes, total:{igntionWorks.Count}"));
+            }
+            //add elem not on fire
+            for (int j = 0; j < elemIdxUnderFire.Length; j++)
+            {
+                if (elemIdxUnderFire[j] == false)
+                {
+                    var elemSafe = elemTemp[j];
+                    elemSafe.Combinations.Add(new HazardCombination(elemSafe));
+                }
+            }
+        }
 
 
 
@@ -1573,6 +1687,7 @@ namespace SiteHazardIdentifier
         public double DistanceToFire { get; set; } = double.MaxValue;
         public bool Ignited { get; set; } = false;
 
+        
         public HazardBoxElementInfo(LightWeightVoxelElement me, List<Work> works, int voxelSize)
         {
             this.ElementId = me.ElementId;
@@ -1589,6 +1704,7 @@ namespace SiteHazardIdentifier
 
             SetElementTimeData(works);
         }
+
         /// <summary>
         /// Get the cell projection
         /// </summary>
@@ -1650,6 +1766,34 @@ namespace SiteHazardIdentifier
             }
         }
 
+    }
+
+
+    public class HazardAABBElementInfo : _4DElement
+    {
+        public List<HazardAABB> Boxes { get; set; }
+        public double DistanceToFire { get; set; } = double.MaxValue;
+        public bool Ignited { get; set; } = false;
+
+        public HazardAABBElementInfo(AABBElement elem, List<Work> works)
+        {
+            this.ElementId = elem.ElementId;
+            this.Boxes = new List<HazardAABB>();
+            var min = elem.Min;
+            var max = elem.Max;
+
+            HazardAABB hazardAABB = new HazardAABB(min, max, this);
+            this.Boxes.Add(hazardAABB);
+
+            SetElementTimeData(works);
+        }
+
+
+        /// <summary>
+        /// Get the cell projection
+        /// </summary>
+        /// <param name="voxSize">vox size to split voxels</param>
+        /// <returns></returns>
     }
     public enum ElementStatus
     {
@@ -1862,7 +2006,14 @@ namespace SiteHazardIdentifier
             result.Append("Ingition Source:");
             List<string> ignitionName = new List<string>();
             var wk = this.IngntionSource;
-            ignitionName.Add($"{wk.Id}_{wk.Name}_{wk.Get_Start().ToShortDateString()}_{wk.Get_Finish(true).ToShortDateString()}");
+            if (wk != null)
+            {
+                ignitionName.Add($"{wk.Id}_{wk.Name}_{wk.Get_Start().ToShortDateString()}_{wk.Get_Finish(true).ToShortDateString()}");
+            }
+            else
+            {
+                ignitionName.Add("Empty");
+            }
             List<string> combMats = new List<string>();
             foreach (var mat in this.CombustibleMaterials)
             {

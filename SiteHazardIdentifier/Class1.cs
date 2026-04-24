@@ -59,8 +59,6 @@ namespace SiteHazardIdentifier
             {
                 frm.Documents.Add(d);
             }
-
-
             frm.Show();
             return Result.Succeeded;
         }
@@ -87,20 +85,60 @@ namespace SiteHazardIdentifier
                 {
                     t.Start("Visualize box");
                     double dblVoxSize = frm.Voxelizer.VoxelSize / 304.8;
-                    foreach (var ve in frm.LightWeightVoxelElements)
+                    if(frm.LightWeightVoxelElements!=null)
                     {
-                        List<Solid> slds = new List<Solid>();
-                        foreach (var box in ve.Boxes)
+                        foreach (var ve in frm.LightWeightVoxelElements)
                         {
-                            var min = box.Min;
-                            var max = box.Max;
-                            var zScale = Math.Max(max.Layer - min.Layer, 1) / 304.8;
-                            var colScale = (max.Col - min.Col + 1) * dblVoxSize;
-                            var rowScale = (max.Row - min.Row + 1) * dblVoxSize;
-                            var pt0 = new XYZ(min.Col * dblVoxSize, min.Row * dblVoxSize, min.Layer / 304.8);
-                            var pt1 = pt0 + XYZ.BasisX * colScale;
-                            var pt2 = pt1 + XYZ.BasisY * rowScale;
-                            var pt3 = pt2 - XYZ.BasisX * colScale;
+                            List<Solid> slds = new List<Solid>();
+                            foreach (var box in ve.Boxes)
+                            {
+                                var min = box.Min;
+                                var max = box.Max;
+                                var zScale = Math.Max(max.Layer - min.Layer, 1) / 304.8;
+                                var colScale = (max.Col - min.Col + 1) * dblVoxSize;
+                                var rowScale = (max.Row - min.Row + 1) * dblVoxSize;
+                                var pt0 = new XYZ(min.Col * dblVoxSize, min.Row * dblVoxSize, min.Layer / 304.8);
+                                var pt1 = pt0 + XYZ.BasisX * colScale;
+                                var pt2 = pt1 + XYZ.BasisY * rowScale;
+                                var pt3 = pt2 - XYZ.BasisX * colScale;
+                                var pts = new List<XYZ>() { pt0, pt1, pt2, pt3 };
+                                var loop = new CurveLoop();
+                                var loops = new List<CurveLoop>() { loop };
+                                for (int i = 0; i <= 3; i++)
+                                {
+                                    var p0 = pts[i % 4];
+                                    var p1 = pts[(i + 1) % 4];
+                                    if ((p1 - p0).GetLength() < 1e-4)
+                                    {
+
+                                    }
+                                    Line li = Line.CreateBound(p0, p1);
+                                    loop.Append(li);
+                                }
+                                var sld = GeometryCreationUtilities.CreateExtrusionGeometry(loops, XYZ.BasisZ, zScale);
+                                slds.Add(sld);
+                            }
+                            DirectShape ds = DirectShape.CreateElement(doc, new ElementId(BuiltInCategory.OST_GenericModel));
+                            ds.AppendShape(slds.ToArray());
+                            var setting = view.GetElementOverrides(ds.Id);
+                            setting.SetSurfaceTransparency(50);
+                            setting.SetProjectionFillPatternId(solidFill.Id);
+                            setting.SetProjectionLineColor(new Color(0, 255, 0));
+                            view.SetElementOverrides(ds.Id, setting);
+                        }
+                    }
+                    else if(frm.AABBElements.Count()!=0)
+                    {
+                        foreach (var ve in frm.AABBElements)
+                        {
+                            List<Solid> slds = new List<Solid>();
+                            var min = ve.Min;
+                            var max = ve.Max;
+                            var scale= max - min;
+                            var pt0 = new XYZ(min.X/304.8,min.Y/304.8,min.Z/304.8);
+                            var pt1 = pt0 + XYZ.BasisX * scale.X/304.8;
+                            var pt2 = pt1 + XYZ.BasisY * scale.Y/304.8;
+                            var pt3 = pt2 - XYZ.BasisX * scale.X/304.8;
                             var pts = new List<XYZ>() { pt0, pt1, pt2, pt3 };
                             var loop = new CurveLoop();
                             var loops = new List<CurveLoop>() { loop };
@@ -115,16 +153,16 @@ namespace SiteHazardIdentifier
                                 Line li = Line.CreateBound(p0, p1);
                                 loop.Append(li);
                             }
-                            var sld = GeometryCreationUtilities.CreateExtrusionGeometry(loops, XYZ.BasisZ, zScale);
+                            var sld = GeometryCreationUtilities.CreateExtrusionGeometry(loops, XYZ.BasisZ, scale.Z/304.8);
                             slds.Add(sld);
+                            DirectShape ds = DirectShape.CreateElement(doc, new ElementId(BuiltInCategory.OST_GenericModel));
+                            ds.AppendShape(slds.ToArray());
+                            var setting = view.GetElementOverrides(ds.Id);
+                            setting.SetSurfaceTransparency(50);
+                            setting.SetProjectionFillPatternId(solidFill.Id);
+                            setting.SetProjectionLineColor(new Color(0, 255, 0));
+                            view.SetElementOverrides(ds.Id, setting);
                         }
-                        DirectShape ds = DirectShape.CreateElement(doc, new ElementId(BuiltInCategory.OST_GenericModel));
-                        ds.AppendShape(slds.ToArray());
-                        var setting = view.GetElementOverrides(ds.Id);
-                        setting.SetSurfaceTransparency(50);
-                        setting.SetProjectionFillPatternId(solidFill.Id);
-                        setting.SetProjectionLineColor(new Color(0, 255, 0));
-                        view.SetElementOverrides(ds.Id, setting);
                     }
                     t.Commit();
                 }
@@ -265,7 +303,19 @@ namespace SiteHazardIdentifier
                             }
                             combIdx += 1;
                         }
-                        var elem = frm.identifier.ElemBoxRel[elemId];
+                        _4DElement elem = null;
+                        if(frm.identifier.ElemMeshRel!=null)
+                        {
+                            elem = frm.identifier.ElemMeshRel[elemId];
+                        }
+                        else if (frm.identifier.ElemBoxRel != null)
+                        {
+                            elem = frm.identifier.ElemBoxRel[elemId];
+                        }
+                        else if (frm.identifier.ElemAABBRel != null)
+                        {
+                            elem = frm.identifier.ElemAABBRel[elemId];
+                        }
                         var elemPhaseString = "Element Phases:\r\n" + string.Join("\r\n", elem.GetElementPhaseString());
                         var comboText = elemPhaseString + "\r\n" + "Fire Hazard Combos:\r\n" + string.Join("\r\n", hazardDescription);
                         if (doc.GetElement(rvtId) != null)
