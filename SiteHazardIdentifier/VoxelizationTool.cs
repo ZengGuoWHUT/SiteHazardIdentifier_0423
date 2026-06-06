@@ -170,6 +170,42 @@ namespace RevitVoxelzation
             return string.Format("{0}_{1}_{2}", Col, Row, Layer);
             
         }
+        public static CellIndex3D Max(CellIndex3D v1,CellIndex3D v2)
+        {
+            var col1 = v1.Col;
+            var row1 = v1.Row;
+            var layer1 = v1.Layer;
+            var col2 = v2.Col;
+            var row2 = v2.Row;
+            var layer2 = v2.Layer;
+            return new CellIndex3D(Math.Max(col1, col2), Math.Max(row1, row2), Math.Max(layer1, layer2));
+        }
+        public static CellIndex3D Min(CellIndex3D v1, CellIndex3D v2)
+        {
+            var col1 = v1.Col;
+            var row1 = v1.Row;
+            var layer1 = v1.Layer;
+            var col2 = v2.Col;
+            var row2 = v2.Row;
+            var layer2 = v2.Layer;
+            return new CellIndex3D(Math.Min(col1, col2), Math.Min(row1, row2), Math.Min(layer1, layer2));
+        }
+
+        public static CellIndex3D MaxValue
+        {
+            get
+            {
+                return new CellIndex3D(int.MaxValue, int.MaxValue, int.MaxValue);
+            }
+        }
+        public static CellIndex3D MinValue
+        {
+            get
+            {
+                return new CellIndex3D(int.MinValue, int.MinValue, int.MinValue);
+            }
+            
+        }
     }
 
     
@@ -1696,7 +1732,30 @@ namespace RevitVoxelzation
         {
             return v*(1/num);
         }
-
+        public static bool operator >(Vec3 v1,Vec3 v2)
+        {
+            return (v1.X > v2.X && v1.Y > v2.Y && v1.Z > v2.Z);
+        }
+        public static bool operator >=(Vec3 v1, Vec3 v2)
+        {
+            return (v1.X >= v2.X && v1.Y >= v2.Y && v1.Z >= v2.Z);
+        }
+        public static bool operator <(Vec3 v1, Vec3 v2)
+        {
+            return (v1.X < v2.X && v1.Y < v2.Y && v1.Z < v2.Z);
+        }
+        public static bool operator <=(Vec3 v1, Vec3 v2)
+        {
+            return (v1.X <= v2.X && v1.Y <= v2.Y && v1.Z <= v2.Z);
+        }
+        public static bool operator ==(Vec3 v1, Vec3 v2)
+        {
+            return (v1.X == v2.X && v1.Y == v2.Y && v1.Z == v2.Z);
+        }
+        public static bool operator !=(Vec3 v1, Vec3 v2)
+        {
+            return !(v1.X == v2.X && v1.Y == v2.Y && v1.Z == v2.Z);
+        }
         public double DotProduct(Vec3 other)
         {
             return this.X * other.X + this.Y * other.Y + this.Z * other.Z;

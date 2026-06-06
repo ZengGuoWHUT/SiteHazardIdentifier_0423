@@ -18,7 +18,7 @@
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="xcopy &quot;$(TargetDir)*.*&quot; &quot;$(SolutionDir)SiteHazardIdentifier\bin\Debug\&quot; /E /Y /I" />
+    <Exec Command="xcopy &quot;$(TargetDir)*.*&quot; &quot;$(SolutionDir)SiteHazardIdentifier\bin\Debug\&quot; /E /Y /I&#xD;&#xA;xcopy &quot;$(TargetDir)*.*&quot; &quot;$(SolutionDir)SiteHazardIdentifier\bin\Debug\2024\&quot; /E /Y /I&#xD;&#xA;xcopy &quot;$(TargetDir)*.*&quot; &quot;$(SolutionDir)SiteHazardIdentifier\bin\Debug\2026\&quot; /E /Y /I" />
   </Target>
 
 </Project>

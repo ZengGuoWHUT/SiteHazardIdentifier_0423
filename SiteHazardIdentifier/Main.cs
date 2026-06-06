@@ -120,11 +120,17 @@ namespace SiteHazardIdentifier
                             }
                             DirectShape ds = DirectShape.CreateElement(doc, new ElementId(BuiltInCategory.OST_GenericModel));
                             ds.AppendShape(slds.ToArray());
+                            /*
                             var setting = view.GetElementOverrides(ds.Id);
                             setting.SetSurfaceTransparency(50);
                             setting.SetProjectionFillPatternId(solidFill.Id);
                             setting.SetProjectionLineColor(new Color(0, 255, 0));
                             view.SetElementOverrides(ds.Id, setting);
+                            */
+                            MultiVerTool.ModifyElemFillPatternId(ds, view, solidFill.Id);
+                            MultiVerTool.ModifyElemColor(ds,view,  new Color(0, 255, 0));
+                            MultiVerTool.ModifyElemTansparency(ds, view, 50);
+
                         }
                     }
                     else if(frm.AABBElements.Count()!=0)
@@ -157,11 +163,18 @@ namespace SiteHazardIdentifier
                             slds.Add(sld);
                             DirectShape ds = DirectShape.CreateElement(doc, new ElementId(BuiltInCategory.OST_GenericModel));
                             ds.AppendShape(slds.ToArray());
+                            /*
                             var setting = view.GetElementOverrides(ds.Id);
                             setting.SetSurfaceTransparency(50);
                             setting.SetProjectionFillPatternId(solidFill.Id);
                             setting.SetProjectionLineColor(new Color(0, 255, 0));
                             view.SetElementOverrides(ds.Id, setting);
+                            */
+                            MultiVerTool.ModifyElemFillPatternId(ds, view, solidFill.Id);
+                            MultiVerTool.ModifyElemColor(ds,view,  new Color(0, 255, 0));
+                            MultiVerTool.ModifyElemTansparency(ds, view, 50);
+
+
                         }
                     }
                     t.Commit();
@@ -205,42 +218,49 @@ namespace SiteHazardIdentifier
             sfg.Filter = "fire Risk Data file|*.fireRiskData";
             if (sfg.ShowDialog() == DialogResult.OK)
             {
-                //Create a folder to save the meshes
-                string zipPath = sfg.FileName;
-                string tempfilePath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-                Directory.CreateDirectory(tempfilePath);
-                //create the mesh files
-                var meshPath = Path.Combine(tempfilePath, Path.GetFileNameWithoutExtension(zipPath) + ".txt");
-                //Export mesh
-                CustomExporter exporter = new CustomExporter(doc, new RevitMeshExporter(doc_Ids, meshPath));
-                exporter.ShouldStopOnError = true;
-                exporter.Export(view as View3D);
-                //Export material
-                var matPath = Path.Combine(tempfilePath, "materials.csv");
-                var matElemPath = Path.Combine(tempfilePath, "matElemRel.csv");
-                var materialExporter = new CustomExporter(doc, new RevitMaterialExporter(doc, doc_Ids.Keys.ToList(), matPath, matElemPath));
-                materialExporter.ShouldStopOnError = true;
-                materialExporter.Export(view as View3D);
-                RevitMeshDocumenetConverter converter = new RevitMeshDocumenetConverter() { Origin = Vec3.Zero };
-                var numElems = RevitMeshDocumenetConverter.CreateMeshElement(meshPath).Count();
-                //save path
-                var modelMataData = Path.Combine(tempfilePath, "ModelInfo.matadata");
-                using (var sw = new StreamWriter(modelMataData, false, Encoding.Default))
+                try
                 {
-                    sw.WriteLine($"ElemNum:{numElems}");
-                    sw.Flush();
-                    sw.Close();
+                    //Create a folder to save the meshes
+                    string zipPath = sfg.FileName;
+                    string tempfilePath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+                    Directory.CreateDirectory(tempfilePath);
+                    //create the mesh files
+                    var meshPath = Path.Combine(tempfilePath, Path.GetFileNameWithoutExtension(zipPath) + ".txt");
+                    //Export mesh
+                    CustomExporter exporter = new CustomExporter(doc, new RevitMeshExporter(doc_Ids, meshPath));
+                    exporter.ShouldStopOnError = true;
+                    exporter.Export(view as View3D);
+                    //Export material
+                    var matPath = Path.Combine(tempfilePath, "materials.csv");
+                    var matElemPath = Path.Combine(tempfilePath, "matElemRel.csv");
+                    var materialExporter = new CustomExporter(doc, new RevitMaterialExporter(doc, doc_Ids.Keys.ToList(), matPath, matElemPath));
+                    materialExporter.ShouldStopOnError = true;
+                    materialExporter.Export(view as View3D);
+                    RevitMeshDocumenetConverter converter = new RevitMeshDocumenetConverter() { Origin = Vec3.Zero };
+                    var numElems = RevitMeshDocumenetConverter.CreateMeshElement(meshPath).Count();
+                    //save path
+                    var modelMataData = Path.Combine(tempfilePath, "ModelInfo.matadata");
+                    using (var sw = new StreamWriter(modelMataData, false, Encoding.Default))
+                    {
+                        sw.WriteLine($"ElemNum:{numElems}");
+                        sw.Flush();
+                        sw.Close();
+                    }
+                    //create a zip file
+                    FastZip fastZip = new FastZip();
+                    var zipFullName = sfg.FileName;
+                    //Delete generated file
+                    fastZip.CreateZip(sfg.FileName, tempfilePath, true, "");
+                    Directory.Delete(tempfilePath, true);
+                    frm.initProgress(numElems);
+                    frm.MeshPath = zipFullName;
+                    frm.Voxelizer = converter;
+                    TaskDialog.Show("Revit", "Done!");
                 }
-                //create a zip file
-                FastZip fastZip = new FastZip();
-                var zipFullName = sfg.FileName;
-                //Delete generated file
-                fastZip.CreateZip(sfg.FileName, tempfilePath, true, "");
-                Directory.Delete(tempfilePath, true);
-                frm.initProgress(numElems);
-                frm.MeshPath = zipFullName;
-                frm.Voxelizer = converter;
-                TaskDialog.Show("Revit", "Done!");
+                catch (Exception ex)
+                {
+                    TaskDialog.Show("Revit", ex.Message + ex.StackTrace);
+                }
             }
 
         }
@@ -292,7 +312,7 @@ namespace SiteHazardIdentifier
                         List<string> hazardDescription = new List<string>();
                         CombinationHazardLevel highestLevel = new CombinationHazardLevel();
                         string[] docIdx_elemID = elemId.Split('$');
-                        ElementId rvtId = new ElementId(int.Parse(docIdx_elemID[1]));
+                        ElementId rvtId =MultiVerTool.String2ElementId(docIdx_elemID[1]);
                         int combIdx = 0;
                         foreach (var combo in comboList)
                         {
@@ -343,12 +363,18 @@ namespace SiteHazardIdentifier
                     {
                         var id = id_Description.Key;
                         elem2Isolate.Add(id);
-
+                        /*
                         var setting = view.GetElementOverrides(id);
                         setting.SetSurfaceTransparency(10);
                         setting.SetProjectionFillPatternId(solidFill.Id);
                         setting.SetProjectionFillColor(new Color(255, 0, 0));
                         view.SetElementOverrides(id, setting);
+                        */
+                        var ds = doc.GetElement(id);
+                        MultiVerTool.ModifyElemFillPatternId(ds, view, solidFill.Id);
+                        MultiVerTool.ModifyElemColor(ds,view,  new Color(255, 0, 0));
+                        MultiVerTool.ModifyElemTansparency(ds, view, 10);
+
                         var elem = doc.GetElement(id);
                     }
                     //Group gpBase = doc.Create.NewGroup(rvtElemIdBase);
@@ -356,39 +382,50 @@ namespace SiteHazardIdentifier
                     {
                         var id = id_Description.Key;
                         elem2Isolate.Add(id);
+                        /*
                         var setting = view.GetElementOverrides(id);
                         setting.SetSurfaceTransparency(10);
                         setting.SetProjectionFillPatternId(solidFill.Id);
                         setting.SetProjectionFillColor(new Color(255, 255, 0));
                         view.SetElementOverrides(id, setting);
+                        */
                         var elem = doc.GetElement(id);
+                        MultiVerTool.ModifyElemFillPatternId(elem, view, solidFill.Id);
+                        MultiVerTool.ModifyElemColor(elem, view, new Color(255, 255, 0));
+                        MultiVerTool.ModifyElemTansparency(elem, view, 10);
 
                     }
                     foreach (var id_Description in rvtElemMedium)
                     {
                         var id = id_Description.Key;
                         elem2Isolate.Add(id);
-
+                        /*
                         var setting = view.GetElementOverrides(id);
                         setting.SetSurfaceTransparency(10);
                         setting.SetProjectionFillPatternId(solidFill.Id);
                         setting.SetProjectionFillColor(new Color(0, 0, 255));
                         view.SetElementOverrides(id, setting);
+                        */
                         var elem = doc.GetElement(id);
-
+                        MultiVerTool.ModifyElemFillPatternId(elem, view, solidFill.Id);
+                        MultiVerTool.ModifyElemColor(elem, view, new Color(0, 0, 255));
+                        MultiVerTool.ModifyElemTansparency(elem, view, 10);
                     }
                     foreach (var id_Description in rvtElemLow)
                     {
                         var id = id_Description.Key;
                         elem2Isolate.Add(id);
-
+                        /*
                         var setting = view.GetElementOverrides(id);
                         setting.SetSurfaceTransparency(10);
                         setting.SetProjectionFillPatternId(solidFill.Id);
                         setting.SetProjectionFillColor(new Color(0, 255, 0));
                         view.SetElementOverrides(id, setting);
+                        */
                         var elem = doc.GetElement(id);
-
+                        MultiVerTool.ModifyElemFillPatternId(elem, view, solidFill.Id);
+                        MultiVerTool.ModifyElemColor(elem, view, new Color(0, 255, 0));
+                        MultiVerTool.ModifyElemTansparency(elem, view, 10);
                     }
                     //Group gpAff = doc.Create.NewGroup(rvtElemIdAff);
                     //view.IsolateElementsTemporary(elem2Isolate);
@@ -812,12 +849,12 @@ namespace SiteHazardIdentifier
                 var groupKeys = WorkIdGroup.Keys.ToArray();
                 for (int i = 0; i <= testBallIds.Count - 1; i++)
                 {
-                    int elemid = testBallIds[i].IntegerValue;
+                    //int elemid = testBallIds[i].IntegerValue;
                     int groupIndex = i % groupCount;
                     var wkGroups = WorkIdGroup[groupKeys[groupIndex]];
                     foreach (var wId in wkGroups)
                     {
-                        wid_Elemids[wId].Add($"0${elemid}");
+                        wid_Elemids[wId].Add($"0${testBallIds[i].ToString()}");
                         if (elemid_Wids.ContainsKey(testBallIds[i]))
                         {
                             elemid_Wids[testBallIds[i]].Add(wId);
@@ -998,12 +1035,12 @@ namespace SiteHazardIdentifier
                 var groupKeys = WorkIdGroup.Keys.ToArray();
                 for (int i = 0; i <= testBallIds.Count - 1; i++)
                 {
-                    int elemid = testBallIds[i].IntegerValue;
+                    //int elemid = testBallIds[i].IntegerValue;
                     int groupIndex = i % groupCount;
                     var wkGroups = WorkIdGroup[groupKeys[groupIndex]];
                     foreach (var wId in wkGroups)
                     {
-                        wid_Elemids[wId].Add($"0${elemid}");
+                        wid_Elemids[wId].Add($"0${testBallIds[i].ToString()}");
                         if (elemid_Wids.ContainsKey(testBallIds[i]))
                         {
                             elemid_Wids[testBallIds[i]].Add(wId);

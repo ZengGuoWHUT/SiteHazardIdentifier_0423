@@ -27,6 +27,7 @@ namespace SiteHazardIdentifier
         private string error = "";
         private StringBuilder data;
         public StreamWriter sw;
+        
         public RevitMeshExporter(Dictionary<Document, int> docs, string meshSavePath)
         {
             FileStream fs = new FileStream(meshSavePath, FileMode.Create, FileAccess.Write);
@@ -51,7 +52,8 @@ namespace SiteHazardIdentifier
 
         public RenderNodeAction OnElementBegin(ElementId elementId)
         {
-            sw.WriteLine($"{documents[stkDocs.Peek()]}${elementId.IntegerValue}");
+            
+            sw.WriteLine($"{documents[stkDocs.Peek()]}${elementId.ToString()}");
             return RenderNodeAction.Proceed;
             //throw new NotImplementedException();
         }

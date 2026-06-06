@@ -3,6 +3,7 @@ using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Electrical;
 using Autodesk.Revit.DB.ExtensibleStorage;
 using Autodesk.Revit.UI;
+using Braincase.GanttChart;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using RevitVoxelzation;
@@ -11,6 +12,7 @@ using System.Collections.Generic;
 using System.Configuration;
 using System.Data;
 using System.Data.OleDb;
+using System.Drawing.Design;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -25,6 +27,8 @@ using System.Threading.Tasks;
 using System.Windows.Documents;
 using System.Windows.Forms;
 using System.Windows.Media.Media3D;
+using System.Xaml;
+using static System.Net.WebRequestMethods;
 using Material = Autodesk.Revit.DB.Material;
 namespace SiteHazardIdentifier
 {
@@ -410,6 +414,9 @@ namespace SiteHazardIdentifier
             }
         }
 
+       
+
+
         /// <summary>
         /// Generate Chunks for a given work
         /// </summary>
@@ -418,23 +425,41 @@ namespace SiteHazardIdentifier
         /// <param name="timeBuffer">time buffer considering the remaining of flamable gas</param>
         /// <param name="elemId_InternalId">elem-mat Id</param>
         /// <returns>chunks </returns>
-        public void IdentifyGlobalFireHazard_VoxelBox2_ConsideringHeight(double defaultFireRange, Dictionary<string, string> elemId_InternalId, IProgress<(int, string)> progress)
+        public void IdentifyGlobalFireHazard_VoxelBox2_ConsideringHeight(double defaultFireRange,double btmOffset,double topOffset, Dictionary<string, string> elemId_InternalId, IProgress<(int, string)> progress)
         {
+            if(btmOffset==double.MinValue && topOffset==double.MaxValue)
+            {
+                IdentifyGlobalFireHazard_VoxelBox2(defaultFireRange, elemId_InternalId, progress);
+                return;
+            }
             //update elem index
             int i = 0;
-            foreach (var elem in this.ElemBoxRel.Values)
+            var elemTemp = this.ElemBoxRel.Values.ToList();
+            foreach (var elem in elemTemp)
             {
                 elem.Combinations = new List<HazardCombination>();
                 elem.UpdateIndex(i);
                 i += 1;
             }
-            var elemTemp = this.ElemBoxRel.Values.ToList();
-
-            //expand voxels 2D
+            //expand elements by cellIdx
             Dictionary<CellIndex, List<int>> cix_ElemIdx = new Dictionary<CellIndex, List<int>>();
-
+            foreach (var elem in this.ElemBoxRel.Values)
+            {
+                foreach (var cix in elem.Get2DProjection((int)this.VoxelSize))
+                {
+                    if (cix_ElemIdx.TryGetValue(cix, out var elemIds))
+                    {
+                        elemIds.Add(elem.GetIndex());
+                    }
+                    else
+                    {
+                        cix_ElemIdx.Add(cix, new List<int>() { elem.GetIndex() });
+                    }
+                }
+            }
             //get combustible elements
             List<Work> igntionWorks = new List<Work>();
+            Dictionary<int,  HashSet<int>> fireIdx_ElemIdxWithinVertical = new Dictionary<int, HashSet<int>>();
             foreach (var work in this.Works)
             {
                 if (work.EmitSparks)
@@ -442,32 +467,198 @@ namespace SiteHazardIdentifier
                     igntionWorks.Add(work);
                 }
             }
+            //get fire range
+            var cix_WkIdx_btm_Top=  this.GetFireSeparationRange6(igntionWorks, elemTemp, defaultFireRange);
             bool[,] elemIdx_FireWorkIdx = new bool[this.ElemBoxRel.Values.Count, igntionWorks.Count];
-            for (int fire = 0; fire <= igntionWorks.Count - 1; fire++)
+            var range = cix_WkIdx_btm_Top.Count;
+            var range10Pencent = (int)Math.Ceiling((decimal)range / 10);
+            int itemProceessed = 0;
+            int processDelta = 0;
+            foreach(var kvp in cix_WkIdx_btm_Top)
             {
-                var workFire = igntionWorks[fire];
-                List<HazardBoxElementInfo> ignitionElems = new List<HazardBoxElementInfo>();
-                foreach (var elemId in workFire.ElementIds)
+                var cix = kvp.Item1;
+                if (cix_ElemIdx.TryGetValue(cix, out var elemIdx))
                 {
-                    if (this.ElemBoxRel.TryGetValue(elemId, out var elem))
+                    foreach(var wkData in kvp.Item2)
                     {
-                        ignitionElems.Add(elem);
-                    }
-                }
-                //get fire separation range
-                var ignitionRange2D = this.GetFireSeparationRange2(ignitionElems, defaultFireRange);
-                //separation fire
-                foreach (var cixFire in ignitionRange2D)
-                {
-                    if (cix_ElemIdx.TryGetValue(cixFire, out var elemIdx))
-                    {
-                        foreach (var eidx in elemIdx)
+                        int wkIdx = wkData.Item1;
+                        var btmElev = wkData.Item2;
+                        var topElev = wkData.Item3;
+                        var elemBtmSearch = btmElev + btmOffset;
+                        var elemTopSearch = topElev + topOffset;
+                        foreach (var elemIdxOnFire in elemIdx)
                         {
-                            elemIdx_FireWorkIdx[eidx, fire] = true;
+                            if (elemIdx_FireWorkIdx[elemIdxOnFire, wkIdx] == true)
+                            {
+                                continue;
+                            }
+                            var elem = elemTemp[elemIdxOnFire];
+                            var elemBtm = elem.BtmElev;
+                            var elemTop = elem.TopElev;
+                            if (elemTop >= elemBtmSearch && elemBtm <= elemTopSearch)
+                            {
+                                elemIdx_FireWorkIdx[elemIdxOnFire, wkIdx] = true;
+                            }
+                        }
+                    }
+                    
+                }
+                itemProceessed += 1;
+                processDelta += 1;
+                if(processDelta >= range10Pencent)
+                {
+                    progress.Report(((int)Math.Round((double)itemProceessed / range * 100, 0), $"{itemProceessed} elements scanned, total:{range}"));
+                    processDelta = 0;
+                }
+            }
+            //crereaete combo
+            int numElems = elemIdx_FireWorkIdx.GetUpperBound(0) + 1;
+            for (int elemId = 0; elemId <= numElems - 1; elemId++)
+            {
+                var elem = elemTemp[elemId];
+                bool elemUnderFire = false;
+                for (int fire = 0; fire <= elemIdx_FireWorkIdx.GetUpperBound(1); fire++)
+                {
+                    if (elemIdx_FireWorkIdx[elemId, fire] == true)
+                    {
+                        var workFire = igntionWorks[fire];
+                        if (!elem.IsElementVoidDuringWork(workFire))
+                        {
+                            elemUnderFire = true;
+                            var comb = new HazardCombination(elem, workFire);
+                            elem.Combinations.Add(comb);
                         }
                     }
                 }
-                progress.Report(((int)Math.Round((double)fire / igntionWorks.Count * 100), $"{fire + 1} Ignition work processes, total:{igntionWorks.Count}"));
+                if (elemUnderFire == false)
+                {
+                    var comb = new HazardCombination(elem);
+                    elem.Combinations.Add(comb);
+                }
+                int percentage = (int)Math.Round((double)(elemId + 1) / numElems * 100);
+                if (percentage % 10 == 0)
+                    progress.Report((percentage, $"{elemId + 1} elements scanned, total:{numElems}"));
+            }
+        }
+
+        /// <summary>
+        /// Generate Chunks for a given work
+        /// </summary>
+        /// <param name="currentWork">Current work</param>
+        /// <param name="defaultFireRange">Fire protection range</param>
+        /// <param name="timeBuffer">time buffer considering the remaining of flamable gas</param>
+        /// <param name="elemId_InternalId">elem-mat Id</param>
+        /// <returns>chunks </returns>
+        public void IdentifyGlobalFireHazard_VoxelBox2_ConsideringHeight2(double defaultFireRange, double btmOffset, double topOffset, Dictionary<string, string> elemId_InternalId, IProgress<(int, string)> progress)
+        {
+            if (btmOffset == double.MinValue && topOffset == double.MaxValue)
+            {
+                IdentifyGlobalFireHazard_VoxelBox2(defaultFireRange, elemId_InternalId, progress);
+                return;
+            }
+            //update elem index
+            int i = 0;
+            var elemTemp = this.ElemBoxRel.Values.ToList();
+            foreach (var elem in elemTemp)
+            {
+                elem.Combinations = new List<HazardCombination>();
+                elem.UpdateIndex(i);
+                i += 1;
+            }
+            //expand elements by cellIdx
+            CellIndex3D maxAll = CellIndex3D.MinValue;
+            CellIndex3D minAll = CellIndex3D.MaxValue;
+            //获取模型边界
+            foreach (var elem in this.ElemBoxRel.Values)
+            {
+                maxAll = CellIndex3D.Max(maxAll, elem.MaxVoxIndex);
+                minAll = CellIndex3D.Min(minAll, elem.MinVoxIndex);
+            }
+
+            //构造一个数组用于加速访问
+            var voxScale = maxAll - minAll;
+            var colRng = voxScale.Col + 1;
+            var rowRng = voxScale.Row + 1;
+            List<int>[,] cixLoc_ElemIdxes =new List<int>[colRng,rowRng];
+            foreach(var elem in this.ElemBoxRel.Values)
+            {
+                int elemIdx = elem.GetIndex();
+                foreach (var cix in elem.Get2DProjection((int)this.VoxelSize))
+                {
+                    var colLoc = cix.Col - minAll.Col;
+                    var rowLoc = cix.Row - minAll.Row;
+                    var lst = cixLoc_ElemIdxes[colLoc, rowLoc];
+                    if (lst==null)
+                    {
+                        cixLoc_ElemIdxes[colLoc, rowLoc] = new List<int> (){ elemIdx };
+                    }
+                    else
+                    {
+                        lst.Add(elemIdx);
+                    }
+                }
+            }
+
+            //get combustible elements
+            List<Work> igntionWorks = new List<Work>();
+            Dictionary<int, HashSet<int>> fireIdx_ElemIdxWithinVertical = new Dictionary<int, HashSet<int>>();
+            foreach (var work in this.Works)
+            {
+                if (work.EmitSparks)
+                {
+                    igntionWorks.Add(work);
+                }
+            }
+            //get fire range
+            bool[,] elemIdx_FireWorkIdx = new bool[this.ElemBoxRel.Values.Count, igntionWorks.Count];
+            int numIgnitioniWorks = igntionWorks.Count;
+            int curWorkIdx = -1;
+            int numWorkProcessed = 0;
+            foreach (var kvp in this.GetFireSeparationRange7(igntionWorks, elemTemp, defaultFireRange))
+            {
+                var cix = kvp.Item1;
+                var colLoc = cix.Col - minAll.Col;
+                var rowLoc = cix.Row - minAll.Row;
+                var elemIdxes = cixLoc_ElemIdxes[colLoc, rowLoc];
+                int wkIdx = kvp.Item2;
+                var btmElev = kvp.Item3;
+                var topElev = kvp.Item4;
+                if (elemIdxes!=null)
+                {
+                    var elemBtmSearch = btmElev + btmOffset;
+                    var elemTopSearch = topElev + topOffset;
+                    foreach (var elemIdxOnFire in elemIdxes)
+                    {
+                        if (elemIdx_FireWorkIdx[elemIdxOnFire, wkIdx] == true)
+                        {
+                            continue;
+                        }
+                        var elem = elemTemp[elemIdxOnFire];
+                        var wk = igntionWorks[wkIdx];
+                        var elemBtm = elem.BtmElev;
+                        var elemTop = elem.TopElev;
+                        if (elemTop >= elemBtmSearch && elemBtm <= elemTopSearch)
+                        {
+                            elemIdx_FireWorkIdx[elemIdxOnFire, wkIdx] = true;
+                        }
+                    }
+                }
+                if(curWorkIdx !=wkIdx)
+                {
+                    numWorkProcessed += 1;
+                    curWorkIdx = wkIdx;
+                    progress.Report(((int)Math.Round((double)numWorkProcessed / igntionWorks.Count * 100), $"{numWorkProcessed} Ignition work processes, total:{igntionWorks.Count}"));
+                }
+
+                /*
+                itemProceessed += 1;
+                processDelta += 1;
+                if (processDelta >= range10Pencent)
+                {
+                    progress.Report(((int)Math.Round((double)itemProceessed / range * 100, 0), $"{itemProceessed} elements scanned, total:{range}"));
+                    processDelta = 0;
+                }
+                */
             }
             //crereaete combo
             int numElems = elemIdx_FireWorkIdx.GetUpperBound(0) + 1;
@@ -579,7 +770,83 @@ namespace SiteHazardIdentifier
             }
         }
 
+        public void IdentifyGlobalFireHazard_AABB_ConsideringVertical(double defaultFireRange, Dictionary<string, string> elemId_InternalId,double btmOffset, double topOffset, IProgress<(int, string)> progress)
+        {
+            //update elem index
+            int i = 0;
+            foreach (var elem in this.ElemAABBRel.Values)
+            {
+                elem.Combinations = new List<HazardCombination>();
+                elem.UpdateIndex(i);
+                i += 1;
+            }
+            var elemTemp = this.ElemAABBRel.Values.ToList();
+            var result = new List<HazardCombination>();
 
+            //get combustible elements
+            List<Work> igntionWorks = new List<Work>();
+            foreach (var work in this.Works)
+            {
+                if (work.EmitSparks)
+                {
+                    igntionWorks.Add(work);
+                }
+            }
+
+            bool[] elemIdxUnderFire = new bool[elemTemp.Count];
+            //crereaete combo
+            for (int fire = 0; fire <= igntionWorks.Count - 1; fire++)
+            {
+                var workFire = igntionWorks[fire];
+                DateTime fireSt = workFire.Get_Start();
+                DateTime fireEd = workFire.Get_Finish(true);
+                List<HazardAABBElementInfo> ignitionElems = new List<HazardAABBElementInfo>();
+                foreach (var elemId in workFire.ElementIds)
+                {
+                    if (this.ElemAABBRel.TryGetValue(elemId, out var elem))
+                    {
+                        ignitionElems.Add(elem);
+                        //ignite ignition source
+                        elem.Ignited = true;
+                    }
+                }
+                //find active element
+                List<HazardAABBElementInfo> activeElem = new List<HazardAABBElementInfo>();
+                foreach (var elem in elemTemp)
+                {
+                    if (!elem.IsElementVoidDuringWork(workFire))
+                    {
+                        activeElem.Add(elem);
+                        //reset ignitino status
+                        elem.Ignited = false;
+                    }
+                }
+                //try ignite elements
+                List<HazardBoxElementInfo> elemOnFire = new List<HazardBoxElementInfo>();
+                //foreach (var elem_dis in SpatialSearchTool.GetElementsWithinDistance(ignitionElems, activeElem, tree, defaultFireRange))
+                foreach (var elem_dis in SpatialSearchTool.GetElementsWithinDistance(ignitionElems, activeElem, defaultFireRange,btmOffset,topOffset))
+                {
+                    var elem = elem_dis.elem;
+                    var dis = elem_dis.distance;
+                    elem.DistanceToFire = dis;
+                    elemIdxUnderFire[elem.GetIndex()] = true;
+                    //check elem linking to current element
+                    var combo = new HazardCombination(elem, workFire) { Distance = dis };
+                    elem.Combinations.Add(combo);
+                }
+                //tempCheck
+                progress.Report(((int)Math.Round((double)fire / igntionWorks.Count * 100), $"{fire} Ignition work processes, total:{igntionWorks.Count}"));
+            }
+            //add elem not on fire
+            for (int j = 0; j < elemIdxUnderFire.Length; j++)
+            {
+                if (elemIdxUnderFire[j] == false)
+                {
+                    var elemSafe = elemTemp[j];
+                    elemSafe.Combinations.Add(new HazardCombination(elemSafe));
+                }
+            }
+        }
 
         /// <summary>
         /// Generate Chunks for a given work
@@ -662,9 +929,151 @@ namespace SiteHazardIdentifier
                 }
             }
         }
+        public void IdentifyGlobalFireHazard_Mesh_ConsideringHeight(double defaultFireRange, double bottomOffset,double topOffset, Dictionary<string, string> elemId_InternalId, IProgress<(int, string)> progress)
+        {
+            //update elem index
+            int i = 0;
+            foreach (var elem in this.ElemMeshRel.Values)
+            {
+                elem.Combinations = new List<HazardCombination>();
+                elem.UpdateIndex(i);
+                i += 1;
+            }
+            var elemTemp = this.ElemMeshRel.Values.ToList();
+            var result = new List<HazardCombination>();
 
+            //get combustible elements
+            List<Work> igntionWorks = new List<Work>();
+            foreach (var work in this.Works)
+            {
+                if (work.EmitSparks)
+                {
+                    igntionWorks.Add(work);
+                }
+            }
 
+            bool[] elemIdxUnderFire = new bool[elemTemp.Count];
+            //crereaete combo
 
+            for (int fire = 0; fire <= igntionWorks.Count - 1; fire++)
+            {
+                var workFire = igntionWorks[fire];
+                DateTime fireSt = workFire.Get_Start();
+                DateTime fireEd = workFire.Get_Finish(true);
+                List<HazardMeshElementInfo> ignitionElems = new List<HazardMeshElementInfo>();
+                foreach (var elemId in workFire.ElementIds)
+                {
+                    if (this.ElemMeshRel.TryGetValue(elemId, out var elem))
+                    {
+                        ignitionElems.Add(elem);
+                    }
+                }
+                //find active element
+                List<HazardMeshElementInfo> activeElem = new List<HazardMeshElementInfo>();
+                foreach (var elem in elemTemp)
+                {
+                    if (!elem.IsElementVoidDuringWork(workFire))
+                    {
+                        activeElem.Add(elem);
+                    }
+                }
+                //try ignite elements
+                List<HazardMeshElementInfo> elemOnFire = new List<HazardMeshElementInfo>();
+                foreach (var elem_dis in SpatialSearchTool.GetElementsWithinDistanceConsideringVertical(workFire, ignitionElems, activeElem, defaultFireRange,bottomOffset,topOffset))
+                {
+                    var elem = elem_dis.elem;
+                    var dis = elem_dis.distance;
+                    elem.DistanceToFire = dis;
+                    elemIdxUnderFire[elem.GetIndex()] = true;
+                    //check elem linking to current element
+                    var combo = new HazardCombination(elem, workFire) { Distance = dis };
+                    elem.Combinations.Add(combo);
+                }
+                //tempCheck
+                progress.Report(((int)Math.Round((double)fire / igntionWorks.Count * 100), $"{fire} Ignition work processes, total:{igntionWorks.Count}"));
+            }
+            //add elem not on fire
+            for (int j = 0; j < elemIdxUnderFire.Length; j++)
+            {
+                if (elemIdxUnderFire[j] == false)
+                {
+                    var elemSafe = elemTemp[j];
+                    elemSafe.Combinations.Add(new HazardCombination(elemSafe));
+                }
+            }
+        }
+
+        public void IdentifyGlobalFireHazard_Mesh_ConsideringHeight_Old(double defaultFireRange, double bottomOffset, double topOffset, Dictionary<string, string> elemId_InternalId, IProgress<(int, string)> progress)
+        {
+            //update elem index
+            int i = 0;
+            foreach (var elem in this.ElemMeshRel.Values)
+            {
+                elem.Combinations = new List<HazardCombination>();
+                elem.UpdateIndex(i);
+                i += 1;
+            }
+            var elemTemp = this.ElemMeshRel.Values.ToList();
+            var result = new List<HazardCombination>();
+
+            //get combustible elements
+            List<Work> igntionWorks = new List<Work>();
+            //Link works and its elems
+            List<(int workRank, HazardMeshElementInfo elem)> idx_Elems = new List<(int workRank, HazardMeshElementInfo elem)>();
+            foreach (var work in this.Works)
+            {
+                if (work.EmitSparks)
+                {
+                    int workRnk = igntionWorks.Count;
+                    igntionWorks.Add(work);
+                    foreach(var elemId in work.ElementIds)
+                    {
+                        this.ElemMeshRel.TryGetValue(elemId, out var elemFound);
+                        if(elemFound!=null)
+                        {
+                            idx_Elems.Add((workRnk, elemFound));
+                        }
+                    }
+                }
+            }
+            var elemsTemp = this.ElemMeshRel.Values.ToList();
+            bool[] elemIdxUnderFire = new bool[elemTemp.Count];
+            HazardMeshElementInfo elemPrev = null;
+            int meshScanned = 0;
+            int meshRepordLevel= (int)(elemTemp.Count * 0.05);
+            int meshNumDelta =0;
+            foreach (var elemFound in   SpatialSearchTool.GetElementsWithinDistanceConsideringVertical3(idx_Elems, elemTemp, defaultFireRange, bottomOffset, topOffset))
+            {
+                int workRank = elemFound.hazardWorkRank;
+                var ignitionWork = igntionWorks[workRank];
+                var eBurn = elemFound.elem;
+                var distance = elemFound.distance;
+                eBurn.DistanceToFire = distance;
+                //check elem linking to current element
+                if(!eBurn.IsElementVoidDuringWork(ignitionWork))
+                {
+                    var combo = new HazardCombination(eBurn, ignitionWork) { Distance = distance };
+                    eBurn.Combinations.Add(combo);
+                    elemIdxUnderFire[eBurn.GetIndex()] = true;
+                }
+                if(elemPrev!=eBurn)
+                {
+                    elemPrev = eBurn;
+                    meshScanned += 1;
+                    progress.Report(((int)Math.Round((double)meshScanned / elemTemp.Count * 100), $"{meshScanned} elements processes, total:{elemTemp.Count}"));
+                }
+                //create combo
+            }
+            //add elem not on fire
+            for (int j = 0; j < elemIdxUnderFire.Length; j++)
+            {
+                if (elemIdxUnderFire[j] == false)
+                {
+                    var elemSafe = elemTemp[j];
+                    elemSafe.Combinations.Add(new HazardCombination(elemSafe));
+                }
+            }
+        }
 
         private List<(int col, int row)> GetFireSeparationRange(List<HazardVoxelElementInfo> igniteElems, double protectionRange)
         {
@@ -902,6 +1311,515 @@ namespace SiteHazardIdentifier
             }
 
             return cix2Scan;
+        }
+
+        private Dictionary<CellIndex,List<int>> GetFireSeparationRange3(List<HazardBoxElementInfo> igniteElems, double protectionRange)
+        {
+            //get fire spread range
+            var fireRange = new FireSearchRange2D(protectionRange, this.VoxelSize);
+            var searchOffset = (int)Math.Ceiling(Math.Round(protectionRange / this.VoxelSize, 3));
+            //use an array to store the union of the fire range
+            Dictionary <CellIndex,List<int>> cix2Scan= new Dictionary<CellIndex, List<int>>();
+            
+            foreach(var igniteElem in igniteElems)
+            {
+                var cix_FireElem = GetCellIndexRangeOfElement(new HazardBoxElementInfo[1] {igniteElem}, out var colFireMin, out var rowFireMin);
+                var colFireMax = cix_FireElem.GetUpperBound(0);
+                var rowFireMax = cix_FireElem.GetUpperBound(1);
+                //check the overlap of fire and vox
+                for (int col = 0; col <= colFireMax; col++)
+                {
+                    for (int row = 0; row <= rowFireMax; row++)
+                    {
+                        //if there is no valid ignition voxels then skip
+                        if (cix_FireElem[col, row] == null)
+                        {
+                            continue;
+                        }
+                        //scan potential voxels above the ignition sources
+                        var colGlobal = col + colFireMin;
+                        var rowGlobal = row + rowFireMin;
+                        var elemFires = cix_FireElem[col, row];
+                        var cixGlobal = new CellIndex(colGlobal, rowGlobal);
+                        foreach (var igSrc in cix_FireElem[col, row])
+                        {
+                            if (cix2Scan.TryGetValue(cixGlobal, out var fireIdx))
+                            {
+                                fireIdx.Add(igSrc.GetIndex());
+                            }
+                            else
+                            {
+                                cix2Scan.Add(cixGlobal, new List<int>(igSrc.GetIndex()));
+                            }
+                        }
+
+
+                        //check the surrounding of the cellOffset
+                        int[] colOffsetNear = new int[4] { 1, 0, -1, 0 };
+                        int[] rowOffsetNear = new int[4] { 0, 1, 0, -1 };
+                        bool[] edgeOutside = new bool[4];
+                        bool onBoundary = false;
+                        for (int i = 0; i <= 3; i++)
+                        {
+                            var colNear = col + colOffsetNear[i];
+                            var rowNear = row + rowOffsetNear[i];
+                            if (!TryGetCellIndexes(cix_FireElem, colNear, rowNear, out var elemFound))//current vox is a boundary one
+                            {
+                                edgeOutside[i] = true;
+                                onBoundary = true;
+                            }
+                        }
+                        //skip cells not on the boundary
+                        if (!onBoundary)
+                        {
+                            continue;
+                        }
+                        for (int i = 0; i <= 3; i++)
+                        {
+                            var curEdgeIdx = (i % 4);
+                            var nextEdgeIdx = ((i + 1) % 4);
+                            if (edgeOutside[curEdgeIdx] == true)// current edge is outside
+                            {
+                                var dir0 = (RangeDirection)(curEdgeIdx * 2);
+                                foreach (var cix in fireRange.GetCellsOfDirection(dir0))
+                                {
+                                    var colFireGlobal = col + cix.Col + colFireMin;
+                                    var rowFireGlobal = row + cix.Row + rowFireMin;
+                                    cixGlobal = new CellIndex(colFireGlobal, rowFireGlobal);
+                                    if (cix2Scan.TryGetValue(cixGlobal, out var elemIdxes))
+                                    {
+                                        elemIdxes.Add(igniteElem.GetIndex());
+                                    }
+                                    else
+                                    {
+                                        cix2Scan.Add(cixGlobal, new List<int>() { igniteElem.GetIndex() });
+                                    }
+
+                                }
+                                if (edgeOutside[nextEdgeIdx] == true)//one point is outside, scan a fan area
+                                {
+                                    var dir1 = (RangeDirection)(nextEdgeIdx * 2);
+                                    foreach (var cix in fireRange.GetCellBetween(dir0, dir1, false, false))
+                                    {
+                                        var colFireGlobal = col + cix.Col + colFireMin;
+                                        var rowFireGlobal = row + cix.Row + rowFireMin;
+                                        cixGlobal = new CellIndex(colFireGlobal, rowFireGlobal);
+                                        if(cix2Scan .TryGetValue(cixGlobal,out var elemIdxes))
+                                        {
+                                            elemIdxes.Add(igniteElem.GetIndex());
+                                        }
+                                        else
+                                        {
+                                            cix2Scan.Add(cixGlobal, new List<int>() { igniteElem.GetIndex() });
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return cix2Scan;
+        }
+
+        private void GetFireSeparationRange4(List<Work> ignitionSource,List<HazardBoxElementInfo> boxElemInfos, double protectionRange,out Dictionary<int, List<int>> workIdx_ElemIdx,out Dictionary<int, HashSet<CellIndex>> elmeIdx_cixFire)
+        {
+            //get fire spread range
+            var fireRange = new FireSearchRange2D(protectionRange, this.VoxelSize);
+            var searchOffset = (int)Math.Ceiling(Math.Round(protectionRange / this.VoxelSize, 3));
+            //use an array to store the union of the fire range
+            HashSet<int> igniteElems = new HashSet<int>();
+            workIdx_ElemIdx = new Dictionary<int, List<int>>();
+            elmeIdx_cixFire = new Dictionary<int, HashSet<CellIndex>>();
+            for(int i=0;i<=ignitionSource.Count -1;i++)
+            {
+                var curWkIdx = i;
+                var wk = ignitionSource[curWkIdx];
+                var elemFoundIdx = new List<int>();
+                workIdx_ElemIdx.Add(curWkIdx, elemFoundIdx);
+                foreach (var elemId in wk.ElementIds)
+                {
+                    if(this.ElemBoxRel.TryGetValue(elemId,out var elemFound))
+                    {
+                        elemFoundIdx.Add(elemFound.GetIndex());
+                        igniteElems.Add(elemFound.GetIndex());
+                    }
+                }
+            }
+
+
+            foreach (var igniteElemIdx in igniteElems)
+            {
+                var igniteElem = boxElemInfos[igniteElemIdx];
+                var cix2D = new HashSet<CellIndex>();
+                elmeIdx_cixFire.Add(igniteElemIdx, cix2D);
+                var cix_FireElem = GetCellIndexRangeOfElement(new HazardBoxElementInfo[1] { igniteElem }, out var colFireMin, out var rowFireMin);
+                var colFireMax = cix_FireElem.GetUpperBound(0);
+                var rowFireMax = cix_FireElem.GetUpperBound(1);
+                //check the overlap of fire and vox
+                for (int col = 0; col <= colFireMax; col++)
+                {
+                    for (int row = 0; row <= rowFireMax; row++)
+                    {
+                        //if there is no valid ignition voxels then skip
+                        if (cix_FireElem[col, row] == null)
+                        {
+                            continue;
+                        }
+                        //scan potential voxels above the ignition sources
+                        var colGlobal = col + colFireMin;
+                        var rowGlobal = row + rowFireMin;
+                        var elemFires = cix_FireElem[col, row];
+                        var cixGlobal = new CellIndex(colGlobal, rowGlobal);
+                        cix2D.Add(cixGlobal);
+
+
+                        //check the surrounding of the cellOffset
+                        int[] colOffsetNear = new int[4] { 1, 0, -1, 0 };
+                        int[] rowOffsetNear = new int[4] { 0, 1, 0, -1 };
+                        bool[] edgeOutside = new bool[4];
+                        bool onBoundary = false;
+                        for (int i = 0; i <= 3; i++)
+                        {
+                            var colNear = col + colOffsetNear[i];
+                            var rowNear = row + rowOffsetNear[i];
+                            if (!TryGetCellIndexes(cix_FireElem, colNear, rowNear, out var elemFound))//current vox is a boundary one
+                            {
+                                edgeOutside[i] = true;
+                                onBoundary = true;
+                            }
+                        }
+                        //skip cells not on the boundary
+                        if (!onBoundary)
+                        {
+                            continue;
+                        }
+                        for (int i = 0; i <= 3; i++)
+                        {
+                            var curEdgeIdx = (i % 4);
+                            var nextEdgeIdx = ((i + 1) % 4);
+                            if (edgeOutside[curEdgeIdx] == true)// current edge is outside
+                            {
+                                var dir0 = (RangeDirection)(curEdgeIdx * 2);
+                                foreach (var cix in fireRange.GetCellsOfDirection(dir0))
+                                {
+                                    var colFireGlobal = col + cix.Col + colFireMin;
+                                    var rowFireGlobal = row + cix.Row + rowFireMin;
+                                    cixGlobal = new CellIndex(colFireGlobal, rowFireGlobal);
+                                    cix2D.Add(cixGlobal);
+
+                                }
+                                if (edgeOutside[nextEdgeIdx] == true)//one point is outside, scan a fan area
+                                {
+                                    var dir1 = (RangeDirection)(nextEdgeIdx * 2);
+                                    foreach (var cix in fireRange.GetCellBetween(dir0, dir1, false, false))
+                                    {
+                                        var colFireGlobal = col + cix.Col + colFireMin;
+                                        var rowFireGlobal = row + cix.Row + rowFireMin;
+                                        cixGlobal = new CellIndex(colFireGlobal, rowFireGlobal);
+                                        cix2D.Add(cixGlobal);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private List<(CellIndex,List<(int,int,int)>)> GetFireSeparationRange5(List<Work> ignitionWork, List<HazardBoxElementInfo> boxElemInfos, double protectionRange)
+        {
+            //get fire spread range
+            var fireRange = new FireSearchRange2D(protectionRange, this.VoxelSize);  
+            var searchOffset = (int)Math.Ceiling(Math.Round(protectionRange / this.VoxelSize, 3));
+            //use an array to store the union of the fire range
+            HashSet<int> igniteElems = new HashSet<int>();
+            var workIdx_ElemIdx = new Dictionary<int, List<int>>();
+            var  elmeIdx_cixFire = new Dictionary<int, HashSet<CellIndex>>();
+            
+            int radius = (int)Math.Ceiling(protectionRange / this.VoxelSize);
+            CellIndex3D maxAll = CellIndex3D.MinValue;
+            CellIndex3D minAll = CellIndex3D.MaxValue;
+            //获取传入对象的边界
+            for (int wix = 0; wix <= ignitionWork.Count - 1; wix++)
+            {
+                var curWkIdx = wix;
+                var wk = ignitionWork[curWkIdx];
+                foreach (var elemId in wk.ElementIds)
+                {
+                    if (this.ElemBoxRel.TryGetValue(elemId, out var elemFound))
+                    {
+
+                        maxAll = CellIndex3D.Max(maxAll, elemFound.MaxVoxIndex);
+                        minAll = CellIndex3D.Min(minAll, elemFound.MinVoxIndex);
+                    }
+                }
+            }
+            //构造一个数组用于加速访问
+            maxAll+=new CellIndex3D(searchOffset,searchOffset,0);
+            minAll-= new CellIndex3D(searchOffset, searchOffset, 0);
+            var voxScale = maxAll - minAll;
+            var colRng = voxScale.Col + 1;
+            var rowRng = voxScale.Row + 1;
+            List<(int,int,int)>[,] cixGenerated= new List<(int, int, int)>[colRng, rowRng];
+
+            for (int wix = 0; wix <= ignitionWork.Count - 1; wix++)
+            {
+                var curWkIdx = wix;
+                var wk = ignitionWork[curWkIdx];
+                var elemFoundIdx = new List<int>();
+                workIdx_ElemIdx.Add(curWkIdx, elemFoundIdx);
+                //group elems by their bottom and elevation size
+                Dictionary<CellIndex, List<HazardBoxElementInfo>> boxElemGroups = new Dictionary<CellIndex, List<HazardBoxElementInfo>>();
+                foreach (var elemId in wk.ElementIds)
+                {
+                    if (this.ElemBoxRel.TryGetValue(elemId, out var elemFound))
+                    {
+                        CellIndex cixVRng = new CellIndex(elemFound.BtmElev, elemFound.TopElev);
+                        if(boxElemGroups.TryGetValue(cixVRng,out var group))
+                        {
+                            group.Add(elemFound);
+                        }
+                        else
+                        {
+                            boxElemGroups.Add(cixVRng, new List<HazardBoxElementInfo>() {elemFound});
+                        }
+                    }
+                }
+
+
+                List<(CellIndex elev, List<CellIndex> cixH)> boxElev_Cix = new List<(CellIndex, List<CellIndex>)>();
+                foreach(var cix_elems in boxElemGroups)
+                {
+                    var cix = cix_elems.Key;
+                    var elems = cix_elems.Value;
+                    var btm = cix.Col;
+                    var top = cix.Row;
+                    var cixH = HazardBoxElementInfo.Get2DProjectionExpansion(elems, (int)this.VoxelSize, radius, fireRange);
+                    boxElev_Cix.Add((cix, cixH));
+                }
+
+                foreach (var cix_elems in boxElev_Cix)
+                {
+                    var cix = cix_elems.elev;
+                    var cixH = cix_elems.cixH;
+                    var btm = cix.Col;
+                    var top = cix.Row;
+                    foreach (var cixGlobal in cixH)
+                    {
+                        int colAlignAll = cixGlobal.Col - minAll.Col;
+                        int rowAlignAll = cixGlobal.Row - minAll.Row;
+                        if (cixGenerated[colAlignAll, rowAlignAll]==null)
+                        {
+                            cixGenerated[colAlignAll, rowAlignAll] =new List<(int, int, int)>() { ( wix, btm, top) };
+                        }
+                        else
+                        {
+                            cixGenerated[colAlignAll, rowAlignAll].Add((wix, btm, top));
+                        }
+                    }
+                }
+            }
+            List<(CellIndex, List<(int, int, int)>)> result = new List<(CellIndex, List<(int, int, int)>)>() { Capacity =colRng*rowRng};
+            for (int colLoc = 0; colLoc < colRng; colLoc++)
+            {
+                for(int rowLoc=0;rowLoc <rowRng;rowLoc++)
+                {
+                    var item = cixGenerated[colLoc, rowLoc];
+                    if(item!=null)
+                    {
+                        var cixGlobal =new CellIndex( colLoc + minAll.Col,rowLoc +minAll.Row);
+
+                        result.Add((cixGlobal, item));
+                    }
+                }
+            }
+            return result;
+        }
+
+        private List<(CellIndex, List<(int, int, int)>)> GetFireSeparationRange6(List<Work> ignitionWork, List<HazardBoxElementInfo> boxElemInfos, double protectionRange)
+        {
+            //get fire spread range
+            var fireRange = new FireSearchRange2D(protectionRange, this.VoxelSize);
+            var searchOffset = (int)Math.Ceiling(Math.Round(protectionRange / this.VoxelSize, 3));
+            //use an array to store the union of the fire range
+            HashSet<int> igniteElems = new HashSet<int>();
+            var workIdx_ElemIdx = new Dictionary<int, List<int>>();
+            var elmeIdx_cixFire = new Dictionary<int, HashSet<CellIndex>>();
+
+            int radius = (int)Math.Ceiling(protectionRange / this.VoxelSize);
+            CellIndex3D maxAll = CellIndex3D.MinValue;
+            CellIndex3D minAll = CellIndex3D.MaxValue;
+            //获取模型边界
+            foreach(var elem in this.ElemBoxRel.Values)
+            {
+                maxAll = CellIndex3D.Max(maxAll, elem.MaxVoxIndex);
+                minAll = CellIndex3D.Min(minAll, elem.MinVoxIndex);
+            }
+            //构造一个数组用于加速访问
+            //maxAll += new CellIndex3D(searchOffset, searchOffset, 0);
+            //minAll -= new CellIndex3D(searchOffset, searchOffset, 0);
+            var voxScale = maxAll - minAll;
+            var colRng = voxScale.Col + 1;
+            var rowRng = voxScale.Row + 1;
+            List<(int, int, int)>[] cixGenerated = new List<(int, int, int)>[colRng*rowRng];
+
+            for (int wix = 0; wix <= ignitionWork.Count - 1; wix++)
+            {
+                var curWkIdx = wix;
+                var wk = ignitionWork[curWkIdx];
+                var elemFoundIdx = new List<int>();
+                workIdx_ElemIdx.Add(curWkIdx, elemFoundIdx);
+                //group elems by their bottom and elevation size
+                Dictionary<CellIndex, List<HazardBoxElementInfo>> boxElemGroups = new Dictionary<CellIndex, List<HazardBoxElementInfo>>();
+                foreach (var elemId in wk.ElementIds)
+                {
+                    if (this.ElemBoxRel.TryGetValue(elemId, out var elemFound))
+                    {
+                        CellIndex cixVRng = new CellIndex(elemFound.BtmElev, elemFound.TopElev);
+                        if (boxElemGroups.TryGetValue(cixVRng, out var group))
+                        {
+                            group.Add(elemFound);
+                        }
+                        else
+                        {
+                            boxElemGroups.Add(cixVRng, new List<HazardBoxElementInfo>() { elemFound });
+                        }
+                    }
+                }
+
+
+                List<(CellIndex elev, List<CellIndex> cixH)> boxElev_Cix = new List<(CellIndex, List<CellIndex>)>();
+                foreach (var cix_elems in boxElemGroups)
+                {
+                    var cix = cix_elems.Key;
+                    var elems = cix_elems.Value;
+                    var btm = cix.Col;
+                    var top = cix.Row;
+                    var cixH = HazardBoxElementInfo.Get2DProjectionExpansion(elems, (int)this.VoxelSize, radius, fireRange);
+                    boxElev_Cix.Add((cix, cixH));
+                }
+
+                foreach (var cix_elems in boxElev_Cix)
+                {
+                    var cix = cix_elems.elev;
+                    var cixH = cix_elems.cixH;
+                    var btm = cix.Col;
+                    var top = cix.Row;
+                    foreach (var cixGlobal in cixH)
+                    {
+                        int colAlignAll = cixGlobal.Col - minAll.Col;
+                        int rowAlignAll = cixGlobal.Row - minAll.Row;
+                        if(colAlignAll <0 || colAlignAll>=colRng || rowAlignAll<0 || rowAlignAll>=rowRng)
+                        {
+                            continue;
+                        }
+                        int internalIndex = colAlignAll * rowRng + rowAlignAll;
+                        if (cixGenerated[internalIndex] == null)
+                        {
+                            cixGenerated[internalIndex] = new List<(int, int, int)>() { (wix, btm, top) };
+                        }
+                        else
+                        {
+                            cixGenerated[internalIndex].Add((wix, btm, top));
+                        }
+                    }
+                }
+            }
+            List<(CellIndex, List<(int, int, int)>)> result = new List<(CellIndex, List<(int, int, int)>)>() { Capacity = colRng * rowRng };
+            for(int interanlIdx=0;interanlIdx<cixGenerated.Length;interanlIdx++)
+            {
+                int colLoc = interanlIdx / rowRng;
+                int rowLoc = interanlIdx % rowRng;
+                var item = cixGenerated[interanlIdx];
+                if (item != null)
+                {
+                    var cixGlobal = new CellIndex(colLoc + minAll.Col, rowLoc + minAll.Row);
+
+                    result.Add((cixGlobal, item));
+                }
+
+            }
+            return result;
+        }
+
+        private IEnumerable<(CellIndex cellLoc, int ignitionWorkRank, int btmElev, int topElev)> GetFireSeparationRange7(List<Work> ignitionWork, List<HazardBoxElementInfo> boxElemInfos, double protectionRange)
+        {
+            //get fire spread range
+            //var fireRange = new FireSearchRange2D(protectionRange, this.VoxelSize);
+            var searchOffset = (int)Math.Ceiling(Math.Round(protectionRange / this.VoxelSize, 3));
+            //use an array to store the union of the fire range
+            HashSet<int> igniteElems = new HashSet<int>();
+            var cornerOffset = HazardBoxElementInfo.GetOffsetPhase1ExcludeAxis(protectionRange, VoxelSize);
+
+            int radius = (int)Math.Ceiling(protectionRange / this.VoxelSize);
+            CellIndex3D maxAll = CellIndex3D.MinValue;
+            CellIndex3D minAll = CellIndex3D.MaxValue;
+            //获取模型边界
+            foreach (var elem in this.ElemBoxRel.Values)
+            {
+                maxAll = CellIndex3D.Max(maxAll, elem.MaxVoxIndex);
+                minAll = CellIndex3D.Min(minAll, elem.MinVoxIndex);
+            }
+            //构造一个数组用于加速访问
+            var voxScale = maxAll - minAll;
+            var colRng = voxScale.Col + 1;
+            var rowRng = voxScale.Row + 1;
+            List<(int, int, int)>[] cixGenerated = new List<(int, int, int)>[colRng * rowRng];
+
+            for (int wix = 0; wix <= ignitionWork.Count - 1; wix++)
+            {
+                var curWkIdx = wix;
+                var wk = ignitionWork[curWkIdx];
+                //group elems by their bottom and elevation size
+                Dictionary<CellIndex, List<HazardBoxElementInfo>> boxElemGroups = new Dictionary<CellIndex, List<HazardBoxElementInfo>>();
+                foreach (var elemId in wk.ElementIds)
+                {
+                    if (this.ElemBoxRel.TryGetValue(elemId, out var elemFound))
+                    {
+                        CellIndex cixVRng = new CellIndex(elemFound.BtmElev, elemFound.TopElev);
+                        if (boxElemGroups.TryGetValue(cixVRng, out var group))
+                        {
+                            group.Add(elemFound);
+                        }
+                        else
+                        {
+                            boxElemGroups.Add(cixVRng, new List<HazardBoxElementInfo>() { elemFound });
+                        }
+                    }
+                }
+
+
+                List<(CellIndex elev, List<CellIndex> cixH)> boxElev_Cix = new List<(CellIndex, List<CellIndex>)>();
+                foreach (var cix_elems in boxElemGroups)
+                {
+                    var cix = cix_elems.Key;
+                    var elems = cix_elems.Value;
+                    var btm = cix.Col;
+                    var top = cix.Row;
+                    //var cixH = HazardBoxElementInfo.Get2DProjectionExpansion(elems, (int)this.VoxelSize, radius, fireRange);
+                    var cixH = HazardBoxElementInfo.Get2DProjectionExpansion_Debug1(elems, (int)this.VoxelSize, radius, cornerOffset);
+                    boxElev_Cix.Add((cix, cixH));
+                }
+
+                foreach (var cix_elems in boxElev_Cix)
+                {
+                    var cix = cix_elems.elev;
+                    var cixH = cix_elems.cixH;
+                    var btm = cix.Col;
+                    var top = cix.Row;
+                    foreach (var cixGlobal in cixH)
+                    {
+                        int colAlignAll = cixGlobal.Col - minAll.Col;
+                        int rowAlignAll = cixGlobal.Row - minAll.Row;
+                        if (colAlignAll < 0 || colAlignAll >= colRng || rowAlignAll < 0 || rowAlignAll >= rowRng)
+                        {
+                            continue;
+                        }
+                        yield return (cixGlobal, wix, btm, top);
+                    }
+                }
+            }
         }
         /// <summary>
         /// Test: if the fire has vertical range
@@ -1386,51 +2304,7 @@ namespace SiteHazardIdentifier
 
 
 
-        public string DescribeRisk2(List<Document> docs)
-        {
-            var chunkData = this.Info.Split('_');
-            //find name of the voxel
-            var elemId = chunkData[0];
-            var docIdx = int.Parse(elemId.Split('$')[0]);
-            var elementId = new ElementId(int.Parse(elemId.Split('$')[1]));
-            var curDoc = docs[docIdx];
-            var elem = docs[docIdx].GetElement(elementId);
-            string strElem = elem.Name;
-            //get eleemet description
-            List<string> elemInfo = new List<string>();
-            foreach (var matId in elem.GetMaterialIds(false).Union(elem.GetMaterialIds(true)))
-            {
-                var mat = curDoc.GetElement(matId) as Material;
-                if (mat != null)
-                {
-                    elemInfo.Add(mat.Name);
-                }
-            }
-            if (elemInfo.Count == 0)
-            {
-                elemInfo.Add("暂无");
-            }
-
-            //find work affected by other
-            List<string> workAffect = new List<string>();
-            int workNumber = 0;
-            for (int i = 1; i <= chunkData.Length - 1; i++)
-            {
-                var kvp = chunkData[i];
-                var work = this.RiskIdentifier.WorkMap[kvp];
-                workAffect.Add(workNumber.ToString() + "." + work.GetWorkDescriptionIncludeTime());
-                workNumber += 1;
-            }
-            if (workAffect.Count == 0)
-            {
-                workAffect.Add("暂无");
-            }
-            //Generate description
-            string strResult = $"当前时间段为:{this.StartTime.ToShortDateString()}-{this.EndTime.ToShortDateString()}\r\n,当前区域的构件为：{strElem},\r\n" +
-                $"材质是：{string.Join("; ", elemInfo)},\r\n" +
-                $"该区域已经完成，正在进行或将要进行的工作:\r\n{string.Join("\r\n", workAffect)}\r\n";
-            return strResult;
-        }
+      
         /// <summary>
         /// Get the element Ids of the work relating to the chunk
         /// </summary>
@@ -1648,10 +2522,20 @@ namespace SiteHazardIdentifier
     {
         public List<MeshSolid> Solids;
         public double DistanceToFire { get; set; } = double.MaxValue;
+        public Vec3 Max { get; set; } = new Vec3(double.MinValue, double.MinValue, double.MinValue);
+        public Vec3 Min { get; set; } = new Vec3(double.MaxValue, double.MaxValue, double.MaxValue);
         public HazardMeshElementInfo(MeshElement me, List<Work> works)
         {
             this.ElementId = me.ElementId;
             this.Solids = me.Solids;
+            foreach(var sld in this.Solids)
+            {
+                foreach(var v in sld.Vertices)
+                {
+                    this.Max = Vec3.Max(v, this.Max);
+                    this.Min = Vec3.Min(v, this.Min);
+                }
+            }
             SetElementTimeData(works);
         }
 
@@ -1687,7 +2571,11 @@ namespace SiteHazardIdentifier
         public double DistanceToFire { get; set; } = double.MaxValue;
         public bool Ignited { get; set; } = false;
 
-        
+        public int BtmElev { get => MinVoxIndex.Layer; }
+        public int TopElev { get => MaxVoxIndex.Layer; }
+
+        public CellIndex3D MaxVoxIndex { get; } = new CellIndex3D(int.MinValue, int.MinValue, int.MinValue);
+        public CellIndex3D MinVoxIndex { get; } = new CellIndex3D(int.MaxValue, int.MaxValue, int.MaxValue);
         public HazardBoxElementInfo(LightWeightVoxelElement me, List<Work> works, int voxelSize)
         {
             this.ElementId = me.ElementId;
@@ -1699,6 +2587,8 @@ namespace SiteHazardIdentifier
                 var boxMin = new CellIndex3D((min.Col) * voxelSize, (min.Row) * voxelSize, min.Layer);
                 var boxMax = new CellIndex3D((max.Col + 1) * voxelSize, (max.Row + 1) * voxelSize, max.Layer);
                 HazardVoxelBox hazardVoxelBox = new HazardVoxelBox(boxMin, boxMax, this);
+                MaxVoxIndex = CellIndex3D.Max(MaxVoxIndex, max);
+                MinVoxIndex = CellIndex3D.Min(MinVoxIndex, min);
                 this.Boxes.Add(hazardVoxelBox);
             }
 
@@ -1731,7 +2621,725 @@ namespace SiteHazardIdentifier
             }
         }
 
+        public IEnumerable<CellIndex> Get2DProjectionExpansion(int voxSize,int voxExpansionSize)
+        {
+            //try merge voxels
+            int colMinGlobal = int.MaxValue;
+            int rowMinGlobal = int.MaxValue;
+            int colMaxGlobal = int.MinValue;
+            int rowMaxGlobal = int.MinValue;
+            foreach (var box in this.Boxes)
+            {
+                var min = box.Min;
+                var max = box.Max;
+                int colSt = min.Col / voxSize - voxExpansionSize;
+                int colEd = max.Col / voxSize - 1 + voxExpansionSize;
+                int rowSt = min.Row / voxSize - voxExpansionSize;
+                int rowEd = max.Row / voxSize - 1 + voxExpansionSize;
+                colMinGlobal = Math.Min(colMinGlobal, colSt);
+                colMaxGlobal = Math.Max(colMaxGlobal, colEd);
+                rowMinGlobal = Math.Min(rowMinGlobal, rowSt);
+                rowMaxGlobal = Math.Max(rowMaxGlobal, rowEd);
+            }
+            bool[,] voxGen = new bool[colMaxGlobal - colMinGlobal + 1, rowMaxGlobal - rowMinGlobal + 1];
 
+            foreach (var box in this.Boxes)
+            {
+                var min = box.Min;
+                var max = box.Max;
+                int colSt = min.Col / voxSize-voxExpansionSize;
+                int colEd = max.Col / voxSize - 1+voxExpansionSize;
+                int rowSt = min.Row / voxSize-voxExpansionSize;
+                int rowEd = max.Row / voxSize - 1+voxExpansionSize;
+                for (int col = colSt; col <= colEd; col++)
+                {
+                    for (int row = rowSt; row <= rowEd; row++)
+                    {
+                        var colLoc = col - colMinGlobal;
+                        var rowLoc = row - rowMinGlobal;
+                        if( voxGen[colLoc,rowLoc]==false)
+                        {
+                            voxGen[colLoc, rowLoc] = true;
+                            yield return new CellIndex(col, row);
+                        }
+                       
+                    }
+                }
+
+            }
+        }
+
+        
+        public static List<CellIndex> Get2DProjectionExpansion(List<HazardBoxElementInfo> elems, int voxSize,int voxExpansionSize,FireSearchRange2D fireRange)
+        {
+            List<CellIndex> result = new List<CellIndex>();
+            //try merge voxels
+            int colMinGlobal = int.MaxValue;
+            int rowMinGlobal = int.MaxValue;
+            int colMaxGlobal = int.MinValue;
+            int rowMaxGlobal = int.MinValue;
+            foreach(var elem in elems)
+            {
+                var min = elem.MinVoxIndex;
+                var max = elem.MaxVoxIndex;
+                int colSt = min.Col - voxExpansionSize;
+                int colEd =max.Col + voxExpansionSize;
+                int rowSt = min.Row - voxExpansionSize;
+                int rowEd = max.Row + voxExpansionSize;
+                colMinGlobal = Math.Min(colMinGlobal, colSt);
+                colMaxGlobal = Math.Max(colMaxGlobal, colEd);
+                rowMinGlobal = Math.Min(rowMinGlobal, rowSt);
+                rowMaxGlobal = Math.Max(rowMaxGlobal, rowEd);
+            }
+            int colRange = colMaxGlobal - colMinGlobal;
+            var rowRange = rowMaxGlobal - rowMinGlobal;
+            byte[,] voxGen = new byte[colMaxGlobal - colMinGlobal + 1, rowMaxGlobal - rowMinGlobal + 1];
+            List<CellIndex> potentialCixOnEdge = new List<CellIndex>() { Capacity =voxGen.Length};
+            foreach (var elem in elems)
+            {
+                foreach (var box in elem.Boxes)
+                {
+                    var min = box.Min;
+                    var max = box.Max;
+                    int colSt = min.Col / voxSize ;
+                    int colEd = max.Col / voxSize - 1;
+                    int rowSt = min.Row / voxSize;
+                    int rowEd = max.Row / voxSize - 1;
+                    for (int col = colSt; col <= colEd; col++)
+                    {
+                        for (int row = rowSt; row <= rowEd; row++)
+                        {
+                            var colLoc = col - colMinGlobal;
+                            var rowLoc = row - rowMinGlobal;
+                            if (voxGen[colLoc, rowLoc] == 0)
+                            {
+                                voxGen[colLoc, rowLoc] = 1;
+                                var cixGen = new CellIndex(col, row);
+                                result.Add(cixGen);
+                                //yield return cixGen;
+                                if(col==colSt || col==colEd || row==rowSt || row==rowEd) //vox on edge
+                                {
+                                    potentialCixOnEdge.Add(cixGen);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            //foreach(var cixOnEdge in potentialCixOnEdge)
+            for (int colLoc=0;colLoc <=colRange-1;colLoc++)
+            {
+                for(int rowLoc=0; rowLoc<=rowRange -1;rowLoc++)
+                {
+                    if (voxGen[colLoc,rowLoc]!=1)
+                    {
+                        continue;
+                    }
+                    int[] colOffsetNear = new int[4] { 1, 0, -1, 0 };
+                    int[] rowOffsetNear = new int[4] { 0, 1, 0, -1 };
+                    bool[] edgeOutside = new bool[4];
+                    bool onBoundary = false;
+                    for (int i = 0; i <= 3; i++)
+                    {
+                        var colNear = colLoc + colOffsetNear[i];
+                        var rowNear = rowLoc + rowOffsetNear[i];
+                        if (colNear < 0 || colNear > colRange || rowNear < 0 || rowNear > rowRange || voxGen[colNear, rowNear] == 0)
+                        {
+                            edgeOutside[i] = true;
+                            onBoundary = true;
+                        }
+                    }
+                    //skip cells not on the boundary
+                    if (!onBoundary)
+                    {
+                        continue;
+                    }
+
+                    for (int i = 0; i <= 3; i++)
+                    {
+                        var curEdgeIdx = (i % 4);
+                        var nextEdgeIdx = ((i + 1) % 4);
+                        if (edgeOutside[curEdgeIdx] == true)// current edge is outside
+                        {
+                            var dir0 = (RangeDirection)(curEdgeIdx * 2);
+                            foreach (var cix in fireRange.GetCellsOfDirection(dir0))
+                            {
+                                var colFireLoc = colLoc + cix.Col;
+                                var rowFieLoc = rowLoc + cix.Row;
+                                var colFireGlobal = colLoc + cix.Col + colMinGlobal;
+                                var rowFireGlobal = rowLoc + cix.Row + rowMinGlobal;
+                                if (voxGen[colFireLoc, rowFieLoc] == 0)
+                                {
+                                    voxGen[colFireLoc, rowFieLoc] = 2;
+                                    result.Add(new CellIndex(colFireGlobal, rowFireGlobal));
+                                    //yield return (new CellIndex(colFireGlobal, rowFireGlobal));
+                                }
+
+                            }
+                            if (edgeOutside[nextEdgeIdx] == true)//one point is outside, scan a fan area
+                            {
+                                var dir1 = (RangeDirection)(nextEdgeIdx * 2);
+                                foreach (var cix in fireRange.GetCellBetween(dir0, dir1, false, false))
+                                {
+                                    var colFireLoc = colLoc + cix.Col;
+                                    var rowFieLoc = rowLoc + cix.Row;
+                                    var colFireGlobal = colLoc + cix.Col + colMinGlobal;
+                                    var rowFireGlobal = rowLoc + cix.Row + rowMinGlobal;
+                                    if (voxGen[colFireLoc, rowFieLoc] == 0)
+                                    {
+                                        voxGen[colFireLoc, rowFieLoc] = 2;
+                                        result.Add(new CellIndex(colFireGlobal, rowFireGlobal));
+                                        //yield return (new CellIndex(colFireGlobal, rowFireGlobal));
+                                    }
+
+                                }
+                            }
+                        }
+                    }
+                }
+                
+            }
+            return result;
+        }
+        public static List<CellIndex>GetOffsetPhase1ExcludeAxis(double offsetDistance,double voxSize)
+        {
+            List<CellIndex> result = new List<CellIndex>();
+            int offsetRadius = (int)(Math.Ceiling(Math.Round( offsetDistance / voxSize, 4)));
+            for(int i=1;i<=offsetDistance;i++)
+            {
+                for(int j=1;j<=offsetDistance;j++)
+                {
+                    double dblCol = (i-1) * voxSize;
+                    double dblRow = (j-1) * voxSize;
+                    double distance = Math.Sqrt(Math.Pow(dblCol, 2) + Math.Pow(dblRow, 2));
+                    if(distance<offsetDistance)
+                    {
+                        result.Add(new CellIndex( i, j));
+                    }
+
+
+                }
+            }
+            return result;
+        }
+        public static IEnumerable<(int,int)>ExpandBox(HazardVoxelBox box, int voxSize,int offsetRadius, List<CellIndex>Phase1Corner)
+        {
+            var min = box.Min;
+            var max = box.Max;
+            int colSt =(min.Col / voxSize);
+            int colEd =(max.Col / voxSize) - 1;
+            int rowSt = (min.Row / voxSize);
+            int rowEd =( max.Row / voxSize) - 1;
+            for(int col=colSt;col<=colEd;col++)
+            {
+                for(int row=rowSt;row<=rowEd;row++)
+                {
+                    yield return (col, row);
+                }
+                //add up
+                for(int row=rowEd +1;row<=rowEd +offsetRadius;row++)
+                {
+                    yield return (col, row);
+                }
+                //add down
+                for (int row = rowSt -offsetRadius; row < rowSt; row++)
+                {
+                    yield return (col, row);
+                }
+            }
+            //Add left
+            for(int col=colSt-offsetRadius;col<colSt;col++)
+            {
+                for (int row = rowSt; row <= rowEd; row++)
+                {
+                    yield return (col, row);
+                }
+            }
+            //add right
+            for (int col = colEd; col <=colEd +offsetRadius; col++)
+            {
+                for (int row = rowSt; row <= rowEd; row++)
+                {
+                    yield return (col, row);
+                }
+            }
+            //add corner
+            
+            foreach(var cix in Phase1Corner)
+            {
+                yield return ((cix.Col + colEd, cix.Row + rowEd));
+                yield return ((-cix.Col +colSt, cix.Row + rowEd));
+                yield return ((-cix.Col +colSt, -cix.Row + rowSt));
+                yield return ((cix.Col + colEd, -cix.Row + rowSt));
+            }
+            
+        }
+
+
+        public static List<CellIndex> Get2DProjectionExpansion_Debug(List<HazardBoxElementInfo> elems, int voxSize, int voxExpansionSize, int expansionOffset)
+        {
+            List<CellIndex> result = new List<CellIndex>();
+            //try merge voxels
+            int colMinGlobal = int.MaxValue;
+            int rowMinGlobal = int.MaxValue;
+            int colMaxGlobal = int.MinValue;
+            int rowMaxGlobal = int.MinValue;
+            foreach (var elem in elems)
+            {
+                var min = elem.MinVoxIndex;
+                var max = elem.MaxVoxIndex;
+                int colSt = min.Col - voxExpansionSize;
+                int colEd = max.Col + voxExpansionSize;
+                int rowSt = min.Row - voxExpansionSize;
+                int rowEd = max.Row + voxExpansionSize;
+                colMinGlobal = Math.Min(colMinGlobal, colSt);
+                colMaxGlobal = Math.Max(colMaxGlobal, colEd);
+                rowMinGlobal = Math.Min(rowMinGlobal, rowSt);
+                rowMaxGlobal = Math.Max(rowMaxGlobal, rowEd);
+            }
+            int colRange = colMaxGlobal - colMinGlobal;
+            var rowRange = rowMaxGlobal - rowMinGlobal;
+            bool[,] voxGen = new bool[colMaxGlobal - colMinGlobal + 1, rowMaxGlobal - rowMinGlobal + 1];
+            List<CellIndex> potentialCixOnEdge = new List<CellIndex>() { Capacity = voxGen.Length };
+            foreach (var elem in elems)
+            {
+                foreach (var box in elem.Boxes)
+                {
+                    var min = box.Min;
+                    var max = box.Max;
+                    int colSt = min.Col / voxSize;
+                    int colEd = max.Col / voxSize - 1;
+                    int rowSt = min.Row / voxSize;
+                    int rowEd = max.Row / voxSize - 1;
+                    for (int col = colSt-expansionOffset; col <= colEd+expansionOffset; col++)
+                    {
+                        for (int row = rowSt-expansionOffset; row <= rowEd+expansionOffset; row++)
+                        {
+                            var colLoc = col - colMinGlobal;
+                            var rowLoc = row - rowMinGlobal;
+                            if (voxGen[colLoc, rowLoc] == false)
+                            {
+                                voxGen[colLoc, rowLoc] = true;
+                                var cixGen = new CellIndex(col, row);
+                                result.Add(cixGen);
+                                
+                            }
+                        }
+                    }
+                }
+            }
+            return result;
+        }
+
+        public static List<CellIndex> Get2DProjectionExpansion_Debug0(List<HazardBoxElementInfo> elems, int voxSize, int voxExpansionSize, List<CellIndex> cornerOffsetPhase1)
+        {
+            List<CellIndex> result = new List<CellIndex>();
+            //try merge voxels
+            int colMinGlobal = int.MaxValue;
+            int rowMinGlobal = int.MaxValue;
+            int colMaxGlobal = int.MinValue;
+            int rowMaxGlobal = int.MinValue;
+            foreach (var elem in elems)
+            {
+                var min = elem.MinVoxIndex;
+                var max = elem.MaxVoxIndex;
+                int colSt = min.Col - voxExpansionSize;
+                int colEd = max.Col + voxExpansionSize;
+                int rowSt = min.Row - voxExpansionSize;
+                int rowEd = max.Row + voxExpansionSize;
+                colMinGlobal = Math.Min(colMinGlobal, colSt);
+                colMaxGlobal = Math.Max(colMaxGlobal, colEd);
+                rowMinGlobal = Math.Min(rowMinGlobal, rowSt);
+                rowMaxGlobal = Math.Max(rowMaxGlobal, rowEd);
+            }
+            int colRange = colMaxGlobal - colMinGlobal;
+            var rowRange = rowMaxGlobal - rowMinGlobal;
+            byte[,] voxGen = new byte[colMaxGlobal - colMinGlobal + 1, rowMaxGlobal - rowMinGlobal + 1];
+            List<CellIndex> potentialCixOnEdge = new List<CellIndex>() { Capacity = voxGen.Length };
+            foreach (var elem in elems)
+            {
+                foreach (var box in elem.Boxes)
+                {
+                    var min = box.Min;
+                    var max = box.Max;
+                    int colSt = min.Col / voxSize;
+                    int colEd = max.Col / voxSize - 1;
+                    int rowSt = min.Row / voxSize;
+                    int rowEd = max.Row / voxSize - 1;
+                    for (int col = colSt; col <= colEd; col++)
+                    {
+                        for (int row = rowSt; row <= rowEd; row++)
+                        {
+                            var colLoc = col - colMinGlobal;
+                            var rowLoc = row - rowMinGlobal;
+                            if (voxGen[colLoc, rowLoc] == 0)
+                            {
+                                voxGen[colLoc, rowLoc] = 1;
+                                var cixGen = new CellIndex(col, row);
+                                result.Add(cixGen);
+                            }
+                        }
+                    }
+                }
+            }
+            //expansion
+            for(int colLoc=0;colLoc<=colRange-1;colLoc++)
+            {
+                for(int rowLoc=0;rowLoc<=rowRange -1;rowLoc++)
+                {
+                    if (voxGen[colLoc,rowLoc]==1)
+                    {
+                        bool eastOutsite = false;
+                        bool northOutside = false;
+                        bool westOutside = false;
+                        bool southOutside = false;
+                        //scan East
+                        if (voxGen[colLoc+1,rowLoc]==0)
+                        {
+                            eastOutsite = true;
+                            for(int coldelta=1;coldelta <=voxExpansionSize;coldelta++)
+                            {
+                                voxGen[colLoc + coldelta, rowLoc] = 2;
+                                result.Add(new CellIndex(colLoc + colMinGlobal + coldelta, rowLoc + rowMinGlobal));
+                            }
+                        }
+                        //scan north
+                        if (voxGen[colLoc,rowLoc +1]==0)
+                        {
+                            for(int rowDelt=1;rowDelt <=voxExpansionSize;rowDelt ++)
+                            {
+                                voxGen[colLoc, rowLoc + rowDelt] = 2;
+                                result.Add(new CellIndex(colLoc + colMinGlobal, rowLoc + rowDelt + rowMinGlobal));
+                            }
+                            if(eastOutsite) //add circle
+                            {
+                                
+                                foreach(var cix in cornerOffsetPhase1)
+                                {
+                                    var colAdjLoc = colLoc + cix.Col;
+                                    var rowAdjLoc = rowLoc + cix.Row;
+                                    var colGlobal = colAdjLoc + colMinGlobal;
+                                    var rowGlobal = rowAdjLoc + rowMinGlobal;
+                                    if (voxGen[colAdjLoc ,rowAdjLoc]==0)
+                                    {
+                                        voxGen[colAdjLoc, rowAdjLoc] = 2;
+                                        result.Add(new CellIndex(colGlobal, rowGlobal));
+                                    }
+                                }
+                            }
+                            northOutside = true;
+                        }
+                        //scan West
+                        if (voxGen[colLoc - 1, rowLoc] == 0)
+                        {
+                            westOutside = true;
+                            for (int coldelta = -voxExpansionSize; coldelta <0; coldelta++)
+                            {
+                                voxGen[colLoc + coldelta, rowLoc] = 2;
+                                result.Add(new CellIndex(colLoc + colMinGlobal + coldelta, rowLoc + rowMinGlobal));
+                            }
+                            if(northOutside)
+                            {
+                                foreach (var cix in cornerOffsetPhase1)
+                                {
+                                    var colAdjLoc = colLoc - cix.Col;
+                                    var rowAdjLoc = rowLoc + cix.Row;
+                                    var colGlobal = colAdjLoc + colMinGlobal;
+                                    var rowGlobal = rowAdjLoc + rowMinGlobal;
+                                    if (voxGen[colAdjLoc, rowAdjLoc] == 0)
+                                    {
+                                        voxGen[colAdjLoc, rowAdjLoc] = 2;
+                                        result.Add(new CellIndex(colGlobal, rowGlobal));
+                                    }
+                                }
+                            }
+                            westOutside = true;
+                        }
+                        //scan south
+                        if (voxGen[colLoc, rowLoc - 1] == 0)
+                        {
+                            for (int rowDelt = -voxExpansionSize; rowDelt <0; rowDelt++)
+                            {
+                                voxGen[colLoc, rowLoc + rowDelt] = 2;
+                                result.Add(new CellIndex(colLoc + colMinGlobal, rowLoc + rowDelt + rowMinGlobal));
+                            }
+                            if (westOutside) //add circle
+                            {
+                                foreach (var cix in cornerOffsetPhase1)
+                                {
+                                    var colAdjLoc = colLoc - cix.Col;
+                                    var rowAdjLoc = rowLoc - cix.Row;
+                                    var colGlobal = colAdjLoc + colMinGlobal;
+                                    var rowGlobal = rowAdjLoc + rowMinGlobal;
+                                    if (voxGen[colAdjLoc, rowAdjLoc] == 0)
+                                    {
+                                        voxGen[colAdjLoc, rowAdjLoc] = 2;
+                                        result.Add(new CellIndex(colGlobal, rowGlobal));
+                                    }
+                                }
+                            }
+                            southOutside = true;
+                        }
+                        if(southOutside && eastOutsite)
+                        {
+                            foreach (var cix in cornerOffsetPhase1)
+                            {
+                                var colAdjLoc = colLoc + cix.Col;
+                                var rowAdjLoc = rowLoc - cix.Row;
+                                var colGlobal = colAdjLoc + colMinGlobal;
+                                var rowGlobal = rowAdjLoc + rowMinGlobal;
+                                if (voxGen[colAdjLoc, rowAdjLoc] == 0)
+                                {
+                                    voxGen[colAdjLoc, rowAdjLoc] = 2;
+                                    result.Add(new CellIndex(colGlobal, rowGlobal));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return result;
+        }
+        public static List<CellIndex> Get2DProjectionExpansion_Debug1(List<HazardBoxElementInfo> elems, int voxSize, int voxExpansionSize, List<CellIndex> cornerOffsetPhase1)
+        {
+            bool elemFound = false; ;
+            List<CellIndex> result = new List<CellIndex>();
+            //try merge voxels
+            int colMinGlobal = int.MaxValue;
+            int rowMinGlobal = int.MaxValue;
+            int colMaxGlobal = int.MinValue;
+            int rowMaxGlobal = int.MinValue;
+            foreach (var elem in elems)
+            {
+                var min = elem.MinVoxIndex;
+                var max = elem.MaxVoxIndex;
+                int colSt = min.Col - voxExpansionSize;
+                int colEd = max.Col + voxExpansionSize;
+                int rowSt = min.Row - voxExpansionSize;
+                int rowEd = max.Row + voxExpansionSize;
+                colMinGlobal = Math.Min(colMinGlobal, colSt);
+                colMaxGlobal = Math.Max(colMaxGlobal, colEd);
+                rowMinGlobal = Math.Min(rowMinGlobal, rowSt);
+                rowMaxGlobal = Math.Max(rowMaxGlobal, rowEd);
+            }
+            int colRange = colMaxGlobal - colMinGlobal;
+            var rowRange = rowMaxGlobal - rowMinGlobal;
+            byte[,] voxGen = new byte[colMaxGlobal - colMinGlobal + 1, rowMaxGlobal - rowMinGlobal + 1];
+            List<CellIndex> potentialCixOnEdge = new List<CellIndex>() { Capacity = voxGen.Length };
+            foreach (var elem in elems)
+            {
+                if(elem.ElementId == "2$2530192")
+                {
+                    elemFound = true;
+                }
+                foreach (var box in elem.Boxes)
+                {
+                    var min = box.Min;
+                    var max = box.Max;
+                    int colSt = min.Col / voxSize;
+                    int colEd = max.Col / voxSize - 1;
+                    int rowSt = min.Row / voxSize;
+                    int rowEd = max.Row / voxSize - 1;
+                    for (int col = colSt; col <= colEd; col++)
+                    {
+                        for (int row = rowSt; row <= rowEd; row++)
+                        {
+                            if(elemFound && col==54 && row==-128)
+                            {
+
+                            }
+                            var colLoc = col - colMinGlobal;
+                            var rowLoc = row - rowMinGlobal;
+                            if (voxGen[colLoc, rowLoc] == 0)
+                            {
+                                if(colLoc ==168 && rowLoc ==52)
+                                {
+
+                                }
+                                voxGen[colLoc, rowLoc] = 1;
+                                var cixGen = new CellIndex(col, row);
+                                result.Add(cixGen);
+                                if(col==colSt || col==colEd || row==rowSt || row==rowEd)
+                                {
+                                    potentialCixOnEdge.Add(new CellIndex(colLoc, rowLoc));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            foreach (var cixEdge in potentialCixOnEdge)
+            {
+                var colLoc = cixEdge.Col;
+                var rowLoc = cixEdge.Row;
+               
+                bool eastOutsite = false;
+                bool northOutside = false;
+                bool westOutside = false;
+                bool southOutside = false;
+                //scan East
+                if (voxGen[colLoc + 1, rowLoc] !=1)
+                {
+                    eastOutsite = true;
+                    for (int coldelta = 1; coldelta <= voxExpansionSize; coldelta++)
+                    {
+                        if(voxGen[colLoc + coldelta, rowLoc]==0)
+                        {
+                            voxGen[colLoc + coldelta, rowLoc] = 2;
+                            result.Add(new CellIndex(colLoc + colMinGlobal + coldelta, rowLoc + rowMinGlobal));
+                        }
+                    }
+                }
+                //scan north
+                if (voxGen[colLoc, rowLoc + 1] !=1)
+                {
+                    for (int rowDelt = 1; rowDelt <= voxExpansionSize; rowDelt++)
+                    {
+                        if(voxGen[colLoc, rowLoc + rowDelt] ==0)
+                        {
+                            voxGen[colLoc, rowLoc + rowDelt] = 2;
+                            result.Add(new CellIndex(colLoc + colMinGlobal, rowLoc + rowDelt + rowMinGlobal));
+                        }
+                    }
+                    if (eastOutsite) //add circle
+                    {
+                        foreach (var cix in cornerOffsetPhase1)
+                        {
+                            var colAdjLoc = colLoc + cix.Col;
+                            var rowAdjLoc = rowLoc + cix.Row;
+                            var colGlobal = colAdjLoc + colMinGlobal;
+                            var rowGlobal = rowAdjLoc + rowMinGlobal;
+                            if (voxGen[colAdjLoc, rowAdjLoc] == 0)
+                            {
+                                voxGen[colAdjLoc, rowAdjLoc] = 2;
+                                result.Add(new CellIndex(colGlobal, rowGlobal));
+                            }
+                        }
+                    }
+                    northOutside = true;
+                }
+                //scan West
+                if (voxGen[colLoc - 1, rowLoc] !=1)
+                {
+                    westOutside = true;
+                    for (int coldelta = -voxExpansionSize; coldelta < 0; coldelta++)
+                    {
+                        if(voxGen[colLoc + coldelta, rowLoc] ==0)
+                        {
+                            voxGen[colLoc + coldelta, rowLoc] = 2;
+                            result.Add(new CellIndex(colLoc + colMinGlobal + coldelta, rowLoc + rowMinGlobal));
+                        }
+                    }
+                    if (northOutside)
+                    {
+                        foreach (var cix in cornerOffsetPhase1)
+                        {
+                            var colAdjLoc = colLoc - cix.Col;
+                            var rowAdjLoc = rowLoc + cix.Row;
+                            var colGlobal = colAdjLoc + colMinGlobal;
+                            var rowGlobal = rowAdjLoc + rowMinGlobal;
+                            if (voxGen[colAdjLoc, rowAdjLoc] == 0)
+                            {
+                                voxGen[colAdjLoc, rowAdjLoc] = 2;
+                                result.Add(new CellIndex(colGlobal, rowGlobal));
+                            }
+                        }
+                    }
+                    westOutside = true;
+                }
+                //scan south
+                if (voxGen[colLoc, rowLoc - 1] != 1)
+                {
+                    for (int rowDelt = -voxExpansionSize; rowDelt < 0; rowDelt++)
+                    {
+                        if( voxGen[colLoc, rowLoc + rowDelt]==0)
+                        {
+                            voxGen[colLoc, rowLoc + rowDelt] = 2;
+                            result.Add(new CellIndex(colLoc + colMinGlobal, rowLoc + rowDelt + rowMinGlobal));
+                        }
+                    }
+                    if (westOutside) //add circle
+                    {
+                        foreach (var cix in cornerOffsetPhase1)
+                        {
+                            var colAdjLoc = colLoc - cix.Col;
+                            var rowAdjLoc = rowLoc - cix.Row;
+                            var colGlobal = colAdjLoc + colMinGlobal;
+                            var rowGlobal = rowAdjLoc + rowMinGlobal;
+                            if (voxGen[colAdjLoc, rowAdjLoc] == 0)
+                            {
+                                voxGen[colAdjLoc, rowAdjLoc] = 2;
+                                result.Add(new CellIndex(colGlobal, rowGlobal));
+                            }
+                        }
+                    }
+                    southOutside = true;
+                }
+                if (southOutside && eastOutsite)
+                {
+                    foreach (var cix in cornerOffsetPhase1)
+                    {
+                        var colAdjLoc = colLoc + cix.Col;
+                        var rowAdjLoc = rowLoc - cix.Row;
+                        var colGlobal = colAdjLoc + colMinGlobal;
+                        var rowGlobal = rowAdjLoc + rowMinGlobal;
+                        if (voxGen[colAdjLoc, rowAdjLoc] == 0)
+                        {
+                            voxGen[colAdjLoc, rowAdjLoc] = 2;
+                            result.Add(new CellIndex(colGlobal, rowGlobal));
+                        }
+                    }
+                }
+            }
+            //expansion
+            return result;
+        }
+        public static List<CellIndex> Get2DProjectionExpansion_Debug(List<HazardBoxElementInfo> elems, int voxSize, int voxExpansionSize, List<CellIndex> cornerOffsetPhase1)
+        {
+            List<CellIndex> result = new List<CellIndex>();
+            //try merge voxels
+            int colMinGlobal = int.MaxValue;
+            int rowMinGlobal = int.MaxValue;
+            int colMaxGlobal = int.MinValue;
+            int rowMaxGlobal = int.MinValue;
+            foreach (var elem in elems)
+            {
+                var min = elem.MinVoxIndex;
+                var max = elem.MaxVoxIndex;
+                int colSt = min.Col - voxExpansionSize;
+                int colEd = max.Col + voxExpansionSize;
+                int rowSt = min.Row - voxExpansionSize;
+                int rowEd = max.Row + voxExpansionSize;
+                colMinGlobal = Math.Min(colMinGlobal, colSt);
+                colMaxGlobal = Math.Max(colMaxGlobal, colEd);
+                rowMinGlobal = Math.Min(rowMinGlobal, rowSt);
+                rowMaxGlobal = Math.Max(rowMaxGlobal, rowEd);
+            }
+            int colRange = colMaxGlobal - colMinGlobal;
+            var rowRange = rowMaxGlobal - rowMinGlobal;
+            byte[,] voxGen = new byte[colMaxGlobal - colMinGlobal + 1, rowMaxGlobal - rowMinGlobal + 1];
+            List<CellIndex> potentialCixOnEdge = new List<CellIndex>() { Capacity = voxGen.Length };
+            foreach (var elem in elems)
+            {
+                foreach (var box in elem.Boxes)
+                {
+                    foreach(var loc in HazardBoxElementInfo.ExpandBox(box,voxSize,voxExpansionSize,cornerOffsetPhase1))
+                    {
+                        var colLoc = loc.Item1 - colMinGlobal;
+                        var rowLoc = loc.Item2 - rowMinGlobal;
+                        if (voxGen[colLoc, rowLoc] == 0)
+                        {
+                            voxGen[colLoc, rowLoc] = 1;
+                            var cixGen = new CellIndex(loc.Item1, loc.Item2);
+                            result.Add(cixGen);
+                        }
+                    }
+                }
+            }
+            //expansion
+           
+            return result;
+        }
 
         public IEnumerable<CellIndex> Get2DProjectionIntersecing(int voxSize, int bottomeElevInclusive, int topElevationInclusive)
         {
@@ -1765,6 +3373,8 @@ namespace SiteHazardIdentifier
                 box.VerticalNearFire = false;
             }
         }
+
+       
 
     }
 
@@ -2103,9 +3713,9 @@ namespace SiteHazardIdentifier
         public double SearchInteval { get; set; }
         private int RangeRadius { get; set; }
         private int RangeTilt { get; set; }
-        private List<CellIndex> RangeENWS { get; set; }
-        private List<CellIndex> RangeNE_NW_SW_SE { get; set; }
-        private List<CellIndex> RangeFanCCW { get; set; }
+        public List<CellIndex> RangeENWS { get; set; }
+        public List<CellIndex> RangeNE_NW_SW_SE { get; set; }
+        public List<CellIndex> RangeFanCCW { get; set; }
         private int phaseCount;
         public FireSearchRange2D(double searchRange, double searchInteval)
         {

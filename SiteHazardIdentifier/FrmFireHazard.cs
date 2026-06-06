@@ -142,9 +142,8 @@ namespace SiteHazardIdentifier
                 string pluginAssemblyPath = typeof(BoxElement).Assembly.Location;
                 string pluginDirectory = System.IO.Path.GetDirectoryName(pluginAssemblyPath);
                 string boxExePath = Path.Combine(pluginDirectory, "VoxelUI.exe");
-                MessageBox.Show(boxExePath);
                 string arguments = string.Join(" ", strMesh, this.txtVoxSize.Text.ToString(), "1",boxPath);
-                //string arguments = string.Join(" ", string.Empty, this.txtVoxSize.Text.ToString(), "1");
+                //string argument = string.Join(" ", string.Empty, this.txtVoxSize.Text.ToString(), "1");
                 // 1. 开始异步等待客户端连接
                 // 2. 启动子进程（此时服务器已经在监听）
                 Process process = new Process();
@@ -1085,15 +1084,36 @@ namespace SiteHazardIdentifier
                 }
                 else if (this.meshElements != null && this.meshElements.Count != 0)
                 {
-                    identifier.IdentifyGlobalFireHazard_Mesh(double.Parse(txtRangeFire.Text), this.ElemId_InternalId, progress);
+                    if(this.chkEnableHeightRange.Checked ==false)
+                    {
+                        identifier.IdentifyGlobalFireHazard_Mesh(double.Parse(txtRangeFire.Text), this.ElemId_InternalId, progress);
+                    }
+                    else
+                    {
+                        identifier.IdentifyGlobalFireHazard_Mesh_ConsideringHeight(double.Parse(txtRangeFire.Text), double.Parse(txtVerticalDown.Text), double.Parse(txtVerticalUp.Text), this.ElemId_InternalId, progress);
+                    }
                 }
                 else if(this.boxElements != null && this.boxElements.Count != 0)
                 {
-                    identifier.IdentifyGlobalFireHazard_VoxelBox2(double.Parse(txtRangeFire.Text), this.ElemId_InternalId, progress);
+                    if(this.chkEnableHeightRange.Checked==false)
+                    {
+                        identifier.IdentifyGlobalFireHazard_VoxelBox2(double.Parse(txtRangeFire.Text), this.ElemId_InternalId, progress);
+                    }
+                    else
+                    {
+                        identifier.IdentifyGlobalFireHazard_VoxelBox2_ConsideringHeight2(double.Parse(txtRangeFire.Text), double.Parse(txtVerticalDown.Text),  double.Parse(txtVerticalUp.Text), this.ElemId_InternalId, progress);
+                    }
                 }
                 else
                 {
-                    identifier.IdentifyGlobalFireHazard_AABB(double.Parse(txtRangeFire.Text), this.ElemId_InternalId, progress);
+                    if (this.chkEnableHeightRange.Checked == false)
+                    {
+                        identifier.IdentifyGlobalFireHazard_AABB(double.Parse(txtRangeFire.Text), this.ElemId_InternalId, progress);
+                    }
+                    else
+                    {
+                        identifier.IdentifyGlobalFireHazard_AABB_ConsideringVertical(double.Parse(txtRangeFire.Text), this.ElemId_InternalId, double.Parse(txtVerticalDown.Text), double.Parse(txtVerticalUp.Text), progress);
+                    }
                 }
             });
             await tks;
@@ -1866,6 +1886,12 @@ namespace SiteHazardIdentifier
                     MessageBox.Show(ex.Message + ex.StackTrace);
                 }
             }
+        }
+
+        private void chkEnableHeightRange_CheckedChanged(object sender, EventArgs e)
+        {
+            txtVerticalUp.Enabled = chkEnableHeightRange.Checked;
+            txtVerticalDown.Enabled = chkEnableHeightRange.Checked;
         }
     }
 

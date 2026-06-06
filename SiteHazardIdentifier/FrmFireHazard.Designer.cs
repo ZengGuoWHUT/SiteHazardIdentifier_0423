@@ -29,9 +29,14 @@
         private void InitializeComponent()
         {
             this.groupBox2 = new System.Windows.Forms.GroupBox();
+            this.chkEnableHeightRange = new System.Windows.Forms.CheckBox();
             this.txtTimeBuffer = new System.Windows.Forms.TextBox();
             this.label7 = new System.Windows.Forms.Label();
+            this.txtVerticalDown = new System.Windows.Forms.TextBox();
+            this.txtVerticalUp = new System.Windows.Forms.TextBox();
             this.txtRangeFire = new System.Windows.Forms.TextBox();
+            this.label3 = new System.Windows.Forms.Label();
+            this.label2 = new System.Windows.Forms.Label();
             this.label1 = new System.Windows.Forms.Label();
             this.groupBox3 = new System.Windows.Forms.GroupBox();
             this.tabControl1 = new System.Windows.Forms.TabControl();
@@ -44,6 +49,7 @@
             this.btnLoadWBS = new System.Windows.Forms.Button();
             this.prog = new System.Windows.Forms.ProgressBar();
             this.groupBox4 = new System.Windows.Forms.GroupBox();
+            this.btnGenAABB = new System.Windows.Forms.Button();
             this.btnGetMesh = new System.Windows.Forms.Button();
             this.btnVoxelize = new System.Windows.Forms.Button();
             this.txtVoxSize = new System.Windows.Forms.TextBox();
@@ -55,7 +61,6 @@
             this.btnAnalysis2 = new System.Windows.Forms.Button();
             this.Visualize = new System.Windows.Forms.GroupBox();
             this.btnElemTemporalTest = new System.Windows.Forms.Button();
-            this.btnGenAABB = new System.Windows.Forms.Button();
             this.groupBox2.SuspendLayout();
             this.groupBox3.SuspendLayout();
             this.tabControl1.SuspendLayout();
@@ -72,20 +77,36 @@
             // 
             // groupBox2
             // 
+            this.groupBox2.Controls.Add(this.chkEnableHeightRange);
             this.groupBox2.Controls.Add(this.txtTimeBuffer);
             this.groupBox2.Controls.Add(this.label7);
+            this.groupBox2.Controls.Add(this.txtVerticalDown);
+            this.groupBox2.Controls.Add(this.txtVerticalUp);
             this.groupBox2.Controls.Add(this.txtRangeFire);
+            this.groupBox2.Controls.Add(this.label3);
+            this.groupBox2.Controls.Add(this.label2);
             this.groupBox2.Controls.Add(this.label1);
             this.groupBox2.Location = new System.Drawing.Point(12, 80);
             this.groupBox2.Name = "groupBox2";
-            this.groupBox2.Size = new System.Drawing.Size(876, 75);
+            this.groupBox2.Size = new System.Drawing.Size(876, 126);
             this.groupBox2.TabIndex = 1;
             this.groupBox2.TabStop = false;
             this.groupBox2.Text = "Parameters";
             // 
+            // chkEnableHeightRange
+            // 
+            this.chkEnableHeightRange.AutoSize = true;
+            this.chkEnableHeightRange.Location = new System.Drawing.Point(9, 90);
+            this.chkEnableHeightRange.Name = "chkEnableHeightRange";
+            this.chkEnableHeightRange.Size = new System.Drawing.Size(205, 22);
+            this.chkEnableHeightRange.TabIndex = 2;
+            this.chkEnableHeightRange.Text = "Enable height range";
+            this.chkEnableHeightRange.UseVisualStyleBackColor = true;
+            this.chkEnableHeightRange.CheckedChanged += new System.EventHandler(this.chkEnableHeightRange_CheckedChanged);
+            // 
             // txtTimeBuffer
             // 
-            this.txtTimeBuffer.Location = new System.Drawing.Point(574, 34);
+            this.txtTimeBuffer.Location = new System.Drawing.Point(599, 34);
             this.txtTimeBuffer.Name = "txtTimeBuffer";
             this.txtTimeBuffer.Size = new System.Drawing.Size(70, 28);
             this.txtTimeBuffer.TabIndex = 1;
@@ -94,11 +115,29 @@
             // label7
             // 
             this.label7.AutoSize = true;
-            this.label7.Location = new System.Drawing.Point(343, 37);
+            this.label7.Location = new System.Drawing.Point(352, 37);
             this.label7.Name = "label7";
             this.label7.Size = new System.Drawing.Size(224, 18);
             this.label7.TabIndex = 0;
             this.label7.Text = "Hazardous Time Buffer(d)";
+            // 
+            // txtVerticalDown
+            // 
+            this.txtVerticalDown.Enabled = false;
+            this.txtVerticalDown.Location = new System.Drawing.Point(700, 91);
+            this.txtVerticalDown.Name = "txtVerticalDown";
+            this.txtVerticalDown.Size = new System.Drawing.Size(70, 28);
+            this.txtVerticalDown.TabIndex = 1;
+            this.txtVerticalDown.Text = "-15000";
+            // 
+            // txtVerticalUp
+            // 
+            this.txtVerticalUp.Enabled = false;
+            this.txtVerticalUp.Location = new System.Drawing.Point(499, 91);
+            this.txtVerticalUp.Name = "txtVerticalUp";
+            this.txtVerticalUp.Size = new System.Drawing.Size(70, 28);
+            this.txtVerticalUp.TabIndex = 1;
+            this.txtVerticalUp.Text = "500";
             // 
             // txtRangeFire
             // 
@@ -108,6 +147,24 @@
             this.txtRangeFire.TabIndex = 1;
             this.txtRangeFire.Text = "10000";
             // 
+            // label3
+            // 
+            this.label3.AutoSize = true;
+            this.label3.Location = new System.Drawing.Point(603, 94);
+            this.label3.Name = "label3";
+            this.label3.Size = new System.Drawing.Size(80, 18);
+            this.label3.TabIndex = 0;
+            this.label3.Text = "Down(mm)";
+            // 
+            // label2
+            // 
+            this.label2.AutoSize = true;
+            this.label2.Location = new System.Drawing.Point(251, 94);
+            this.label2.Name = "label2";
+            this.label2.Size = new System.Drawing.Size(242, 18);
+            this.label2.TabIndex = 0;
+            this.label2.Text = "Fire Vertical Range Up(mm)";
+            // 
             // label1
             // 
             this.label1.AutoSize = true;
@@ -115,14 +172,14 @@
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(242, 18);
             this.label1.TabIndex = 0;
-            this.label1.Text = "Fire protection Ranges(mm)";
+            this.label1.Text = "Fire Horizontal Ranges(mm)";
             // 
             // groupBox3
             // 
             this.groupBox3.Controls.Add(this.tabControl1);
-            this.groupBox3.Location = new System.Drawing.Point(9, 161);
+            this.groupBox3.Location = new System.Drawing.Point(9, 212);
             this.groupBox3.Name = "groupBox3";
-            this.groupBox3.Size = new System.Drawing.Size(882, 443);
+            this.groupBox3.Size = new System.Drawing.Size(882, 392);
             this.groupBox3.TabIndex = 2;
             this.groupBox3.TabStop = false;
             this.groupBox3.Text = "WBS";
@@ -134,7 +191,7 @@
             this.tabControl1.Location = new System.Drawing.Point(6, 27);
             this.tabControl1.Name = "tabControl1";
             this.tabControl1.SelectedIndex = 0;
-            this.tabControl1.Size = new System.Drawing.Size(876, 410);
+            this.tabControl1.Size = new System.Drawing.Size(876, 359);
             this.tabControl1.TabIndex = 1;
             // 
             // tabPage1
@@ -143,7 +200,7 @@
             this.tabPage1.Location = new System.Drawing.Point(4, 28);
             this.tabPage1.Name = "tabPage1";
             this.tabPage1.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPage1.Size = new System.Drawing.Size(868, 378);
+            this.tabPage1.Size = new System.Drawing.Size(868, 327);
             this.tabPage1.TabIndex = 0;
             this.tabPage1.Text = "WBS";
             this.tabPage1.UseVisualStyleBackColor = true;
@@ -159,7 +216,7 @@
             this.dgvWBS.Name = "dgvWBS";
             this.dgvWBS.RowHeadersWidth = 62;
             this.dgvWBS.RowTemplate.Height = 30;
-            this.dgvWBS.Size = new System.Drawing.Size(862, 372);
+            this.dgvWBS.Size = new System.Drawing.Size(862, 321);
             this.dgvWBS.TabIndex = 0;
             // 
             // tabPage2
@@ -168,7 +225,7 @@
             this.tabPage2.Location = new System.Drawing.Point(4, 28);
             this.tabPage2.Name = "tabPage2";
             this.tabPage2.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPage2.Size = new System.Drawing.Size(868, 378);
+            this.tabPage2.Size = new System.Drawing.Size(868, 327);
             this.tabPage2.TabIndex = 1;
             this.tabPage2.Text = "Materials";
             this.tabPage2.UseVisualStyleBackColor = true;
@@ -184,7 +241,7 @@
             this.dgvMat.Name = "dgvMat";
             this.dgvMat.RowHeadersWidth = 62;
             this.dgvMat.RowTemplate.Height = 30;
-            this.dgvMat.Size = new System.Drawing.Size(862, 372);
+            this.dgvMat.Size = new System.Drawing.Size(862, 321);
             this.dgvMat.TabIndex = 0;
             // 
             // txtInfo
@@ -238,6 +295,16 @@
             this.groupBox4.TabIndex = 5;
             this.groupBox4.TabStop = false;
             this.groupBox4.Text = "Voxelization parameteers";
+            // 
+            // btnGenAABB
+            // 
+            this.btnGenAABB.Location = new System.Drawing.Point(636, 22);
+            this.btnGenAABB.Name = "btnGenAABB";
+            this.btnGenAABB.Size = new System.Drawing.Size(169, 30);
+            this.btnGenAABB.TabIndex = 4;
+            this.btnGenAABB.Text = "Generate AABB";
+            this.btnGenAABB.UseVisualStyleBackColor = true;
+            this.btnGenAABB.Click += new System.EventHandler(this.btnGenAABB_Click);
             // 
             // btnGetMesh
             // 
@@ -351,16 +418,6 @@
             this.btnElemTemporalTest.UseVisualStyleBackColor = true;
             this.btnElemTemporalTest.Click += new System.EventHandler(this.btnElemTemporalTest_Click);
             // 
-            // btnGenAABB
-            // 
-            this.btnGenAABB.Location = new System.Drawing.Point(636, 22);
-            this.btnGenAABB.Name = "btnGenAABB";
-            this.btnGenAABB.Size = new System.Drawing.Size(169, 30);
-            this.btnGenAABB.TabIndex = 4;
-            this.btnGenAABB.Text = "Generate AABB";
-            this.btnGenAABB.UseVisualStyleBackColor = true;
-            this.btnGenAABB.Click += new System.EventHandler(this.btnGenAABB_Click);
-            // 
             // FrmFireHazard
             // 
             this.ClientSize = new System.Drawing.Size(1502, 850);
@@ -426,5 +483,10 @@
         private System.Windows.Forms.GroupBox Visualize;
         private System.Windows.Forms.Button btnElemTemporalTest;
         private System.Windows.Forms.Button btnGenAABB;
+        private System.Windows.Forms.TextBox txtVerticalUp;
+        private System.Windows.Forms.Label label2;
+        private System.Windows.Forms.TextBox txtVerticalDown;
+        private System.Windows.Forms.Label label3;
+        private System.Windows.Forms.CheckBox chkEnableHeightRange;
     }
 }
