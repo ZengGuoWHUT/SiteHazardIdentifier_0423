@@ -1,19 +1,11 @@
-﻿using Autodesk.Revit.ApplicationServices;
-using Autodesk.Revit.Attributes;
-using Autodesk.Revit.Creation;
-using Autodesk.Revit.DB;
-using Autodesk.Revit.Exceptions;
+﻿using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using RevitVoxelzation;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using Document = Autodesk.Revit.DB.Document;
 namespace SiteHazardIdentifier
 {
@@ -27,7 +19,7 @@ namespace SiteHazardIdentifier
         private string error = "";
         private StringBuilder data;
         public StreamWriter sw;
-        
+
         public RevitMeshExporter(Dictionary<Document, int> docs, string meshSavePath)
         {
             FileStream fs = new FileStream(meshSavePath, FileMode.Create, FileAccess.Write);
@@ -52,7 +44,7 @@ namespace SiteHazardIdentifier
 
         public RenderNodeAction OnElementBegin(ElementId elementId)
         {
-            
+
             sw.WriteLine($"{documents[stkDocs.Peek()]}${elementId.ToString()}");
             return RenderNodeAction.Proceed;
             //throw new NotImplementedException();
@@ -190,7 +182,7 @@ namespace SiteHazardIdentifier
         public Dictionary<string, string> ElementId_MaterialId { get; set; } = new Dictionary<string, string>();
 
         public List<Document> Documents { get; set; }
-        public RevitMaterialExporter(Document doc, List<Document> documents, string savePath,string matElempath)
+        public RevitMaterialExporter(Document doc, List<Document> documents, string savePath, string matElempath)
         {
             docStack.Push(doc);
             Documents = documents;
@@ -267,9 +259,9 @@ namespace SiteHazardIdentifier
                 var matIds0 = elem.GetMaterialIds(false);
                 var matIds1 = elem.GetMaterialIds(true);
                 var matIds = matIds0.Union(matIds1);
-                
+
                 HashSet<string> InternalMatIds = new HashSet<string>();
-                if(matIds.Count() !=0)
+                if (matIds.Count() != 0)
                 {
                     foreach (var matId in matIds)
                     {
@@ -436,7 +428,7 @@ namespace SiteHazardIdentifier
                             else
                             {
                                 var curElem = elements.Peek();
-                                if(curElem.Solids.Count== 0)
+                                if (curElem.Solids.Count == 0)
                                 {
                                     curElem.Solids.Add(new MeshSolid(curElem, new List<Vec3>(), new List<int>()));
                                 }
@@ -471,7 +463,7 @@ namespace SiteHazardIdentifier
             }
 
         }
-       
+
         public IEnumerable<VoxelElement> Voxelize(string meshPath, string savePath)
         {
             var voxDoc = new VoxelDocument();
@@ -524,7 +516,7 @@ namespace SiteHazardIdentifier
                 //var elems = CreateMeshElement(meshPath).ToList();
                 foreach (var elem in CreateMeshElement(meshPath))
                 {
-                    VoxelElement ve = new VoxelElement(voxDoc, elem, true, 1e-2,true);
+                    VoxelElement ve = new VoxelElement(voxDoc, elem, true, 1e-2, true);
                     timeGenGridPts += ve.timeGridPtGen;
                     timeFillVoxels += ve.timeVoxFill;
                     timeMergeVoxels += ve.timeVoxMerge;
@@ -548,7 +540,7 @@ namespace SiteHazardIdentifier
             }
         }
 
-        public static void WriteVoxelFile(string savePath,Vec3 origin,double voxelSize, List<VoxelElement> voxElems)
+        public static void WriteVoxelFile(string savePath, Vec3 origin, double voxelSize, List<VoxelElement> voxElems)
         {
             FileStream fs = new FileStream(savePath, FileMode.Create);
             using (StreamWriter sw = new StreamWriter(fs, Encoding.Default, 1024 * 1024))
@@ -558,7 +550,7 @@ namespace SiteHazardIdentifier
                 //var elems = CreateMeshElement(meshPath).ToList();
                 foreach (var ve in voxElems)
                 {
-                    
+
                     sw.WriteLine(ve.ElementId);
                     int[] strVoxelData = new int[ve.Voxels.Count * 4];
                     for (int i = 0; i < ve.Voxels.Count; i++)
@@ -613,19 +605,19 @@ namespace SiteHazardIdentifier
 
         public IEnumerable<VoxelElement> LoadVoxelizedElements(string path)
         {
-            using(var sr=new StreamReader(path))
+            using (var sr = new StreamReader(path))
             {
                 //Read Origin
                 var origin = sr.ReadLine();
-                string[] strOrigin=origin.Split(',');
-                double dblX=Double.Parse(strOrigin[0]);
-                double dblY=Double.Parse(strOrigin[1]);
-                double dblZ=Double.Parse(strOrigin[2]);
-                XYZ o=new XYZ(dblX, dblY, dblZ);
-                var step = double.Parse(sr.ReadLine()) ;
-               
-                this.Origin = new Vec3(dblX,dblY ,dblZ)   ;
-                this.VoxelSize= step;
+                string[] strOrigin = origin.Split(',');
+                double dblX = Double.Parse(strOrigin[0]);
+                double dblY = Double.Parse(strOrigin[1]);
+                double dblZ = Double.Parse(strOrigin[2]);
+                XYZ o = new XYZ(dblX, dblY, dblZ);
+                var step = double.Parse(sr.ReadLine());
+
+                this.Origin = new Vec3(dblX, dblY, dblZ);
+                this.VoxelSize = step;
                 //load voxel info
                 while (!sr.EndOfStream)
                 {
@@ -644,7 +636,7 @@ namespace SiteHazardIdentifier
                         ve.Voxels.Add(vox);
                     }
                     yield return ve;
-                    
+
                 }
                 sr.Close();
 
@@ -703,9 +695,9 @@ namespace SiteHazardIdentifier
                     string elemId = sr.ReadLine();
                     string[] strMinData = sr.ReadLine().Split(',');
                     AABBElement aabb = new AABBElement() { ElementId = elemId };
-                    aabb.Min =new Vec3(double.Parse(strMinData[0]), double.Parse(strMinData[1]), double.Parse(strMinData[2]));
+                    aabb.Min = new Vec3(double.Parse(strMinData[0]), double.Parse(strMinData[1]), double.Parse(strMinData[2]));
                     strMinData = sr.ReadLine().Split(',');
-                    aabb.Max =new Vec3(double.Parse(strMinData[0]), double.Parse(strMinData[1]), double.Parse(strMinData[2]));
+                    aabb.Max = new Vec3(double.Parse(strMinData[0]), double.Parse(strMinData[1]), double.Parse(strMinData[2]));
                     yield return aabb;
 
                 }

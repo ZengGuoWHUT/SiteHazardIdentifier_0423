@@ -4,11 +4,11 @@ using System.Runtime.InteropServices;
 // 有关程序集的一般信息由以下
 // 控制。更改这些特性值可修改
 // 与程序集关联的信息。
-[assembly: AssemblyTitle("ResultChecker")]
+[assembly: AssemblyTitle("LLMFireDataHelper")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("ResultChecker")]
+[assembly: AssemblyProduct("LLMFireDataHelper")]
 [assembly: AssemblyCopyright("Copyright ©  2026")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
@@ -19,7 +19,7 @@ using System.Runtime.InteropServices;
 [assembly: ComVisible(false)]
 
 // 如果此项目向 COM 公开，则下列 GUID 用于类型库的 ID
-[assembly: Guid("14983e56-ff2d-4337-a50f-98fec3987b77")]
+[assembly: Guid("9a1e7840-64f9-448e-b212-7d7b277c7658")]
 
 // 程序集的版本信息由下列四个值组成: 
 //

@@ -1,18 +1,14 @@
-﻿
-using DotRecast.Core;
-using DotRecast.Core.Numerics;
+﻿using DotRecast.Core.Numerics;
 using DotRecast.Recast;
 using DotRecast.Recast.Geom;
 using RevitVoxelzation;
 using SiteHazardIdentifier;
-using System.Diagnostics;
-using System.Security.Policy;
 
 namespace ClassLibrary1
 {
 
-   
-    public class MeshProvider :IRcInputGeomProvider
+
+    public class MeshProvider : IRcInputGeomProvider
     {
         public readonly float[] vertices;
         public readonly int[] faces;
@@ -40,9 +36,9 @@ namespace ClassLibrary1
                     foreach (var v in vs)
                     {
                         var vxzy = new Vec3(v.X, v.Z, v.Y);
-                        lstVertices.Add((float)v.X/1000);
-                        lstVertices.Add((float)v.Z/1000);
-                        lstVertices.Add((float)v.Y/1000);
+                        lstVertices.Add((float)v.X / 1000);
+                        lstVertices.Add((float)v.Z / 1000);
+                        lstVertices.Add((float)v.Y / 1000);
                         max = Vec3.Max(vxzy / 1000, max);
                         min = Vec3.Min(vxzy / 1000, min);
                     }
@@ -79,7 +75,7 @@ namespace ClassLibrary1
             this.bmax = new RcVec3f((float)max.X, (float)max.Y, (float)max.Z);
             this.mesh = new RcTriMesh(this.vertices, this.faces);
         }
-        public  RcVec3f GetGlobalMin()
+        public RcVec3f GetGlobalMin()
         {
             return this.globalMin;
         }
@@ -128,7 +124,7 @@ namespace ClassLibrary1
             throw new NotImplementedException();
         }
     }
-   
+
     public class MeshProvider2 : IRcInputGeomProvider
     {
         public readonly float[] vertices;
@@ -137,7 +133,7 @@ namespace ClassLibrary1
         private readonly RcVec3f bmin;
         private readonly RcVec3f bmax;
         private readonly List<RcTriMesh> meshes;
-       
+
 
         public MeshProvider2(string meshPath)
         {
@@ -160,13 +156,13 @@ namespace ClassLibrary1
                     foreach (var v in vs)
                     {
                         var vxzy = new Vec3(v.X, v.Z, v.Y);
-                        lstVertices.Add((float)v.X );
+                        lstVertices.Add((float)v.X);
                         lstVertices.Add((float)v.Z);
                         lstVertices.Add((float)v.Y);
                         max = Vec3.Max(vxzy, max);
                         min = Vec3.Min(vxzy, min);
                     }
-                   
+
                     foreach (var tri in triangles)
                     {
                         var tri0 = pt + tri.VerticesIndex[0];
@@ -177,12 +173,12 @@ namespace ClassLibrary1
                         lstTriangles.Add(tri2);
                     }
                 }
-                var faces=lstTriangles.ToArray();
+                var faces = lstTriangles.ToArray();
                 var vertices = lstVertices.ToArray();
                 var m = new MyMesh(vertices, faces) { ElementId = mesh.ElementId };
 
-               m.SetMin( new RcVec3f((float)min.X, (float)min.Y, (float)min.Z));
-               m.SetMax( new RcVec3f((float)max.X, (float)max.Y, (float)max.Z));
+                m.SetMin(new RcVec3f((float)min.X, (float)min.Y, (float)min.Z));
+                m.SetMax(new RcVec3f((float)max.X, (float)max.Y, (float)max.Z));
                 minGlobal = Vec3.Min(min, minGlobal);
                 maxGlobal = Vec3.Max(max, maxGlobal);
                 this.meshes.Add(m);
@@ -201,7 +197,7 @@ namespace ClassLibrary1
 
 
         }
-       
+
         public void AddConvexVolume(RcConvexVolume convexVolume)
         {
             throw new NotImplementedException();
@@ -239,7 +235,7 @@ namespace ClassLibrary1
 
         public IEnumerable<RcTriMesh> Meshes()
         {
-            foreach(var mesh in this.meshes)
+            foreach (var mesh in this.meshes)
             {
                 yield return mesh;
             }
@@ -253,7 +249,7 @@ namespace ClassLibrary1
 
     public class MyMesh : RcTriMesh
     {
-        public string ElementId {  get; set; }
+        public string ElementId { get; set; }
         public RcVec3f min;
         public RcVec3f max;
         public MyMesh(float[] vertices, int[] faces) : base(vertices, faces)
@@ -298,6 +294,6 @@ namespace ClassLibrary1
         public static readonly RcAreaModification SAMPLE_AREAMOD_JUMP = new RcAreaModification(SAMPLE_POLYAREA_FLAG_JUMP, SAMPLE_POLYAREA_FLAG_JUMP);
     }
 
-   
+
 
 }

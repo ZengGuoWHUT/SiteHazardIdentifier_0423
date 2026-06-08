@@ -5,63 +5,59 @@ using DotRecast.Recast;
 using DotRecast.Recast.Geom;
 using RevitVoxelzation;
 using SiteHazardIdentifier;
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace ClassLibrary1
 {
-    public  class BoxBuilder
+    public class BoxBuilder
     {
         // 1. 声明一个线程安全的计数器
         private static int _processedCount = 0;
-        public MeshLoader Loader { get;}
-        public int NumElements { get;}
+        public MeshLoader Loader { get; }
+        public int NumElements { get; }
         public int NumTriangles { get; private set; }
         public BoxBuilder(string strPath)
         {
-           this.Loader= new MeshLoader(strPath);
+            this.Loader = new MeshLoader(strPath);
             NumElements = this.Loader.meshes.Count;
             foreach (var mesh in this.Loader.meshes)
             {
-                NumTriangles += mesh.GetTris().Length/3;
+                NumTriangles += mesh.GetTris().Length / 3;
             }
         }
-        public  IEnumerable<VoxelElement> GenerateVoxelElements( float voxSize,float cellHeight)
+        public IEnumerable<VoxelElement> GenerateVoxelElements(float voxSize, float cellHeight)
         {
             var meshes = this.Loader.Meshes().ToList();
             foreach (MyMesh geom in Loader.Meshes().Cast<MyMesh>())
             {
-                yield return Mesh2VoxElem(geom,voxSize,cellHeight);
+                yield return Mesh2VoxElem(geom, voxSize, cellHeight);
             }
         }
 
-        public  IEnumerable<LightWeightVoxelElement> GenerateBoxElemns( float voxSize,float cellHeight)
+        public IEnumerable<LightWeightVoxelElement> GenerateBoxElemns(float voxSize, float cellHeight)
         {
-            foreach (var ve in GenerateVoxelElements(voxSize,cellHeight))
+            foreach (var ve in GenerateVoxelElements(voxSize, cellHeight))
             {
                 var boxElem = new LightWeightVoxelElement(ve);
                 yield return boxElem;
             }
         }
 
-        public async IAsyncEnumerable<LightWeightVoxelElement> GenerateBoxElemnsAsync(float voxSize, float cellHeight,IProgress<int> progress)
+        public async IAsyncEnumerable<LightWeightVoxelElement> GenerateBoxElemnsAsync(float voxSize, float cellHeight, IProgress<int> progress)
         {
             int numProcessed = 0;
             int numLastUpdate = 0;
             int updateThreshold = this.NumElements / 100;
             await foreach (var ve in GenerateVoxelElementsAsync(voxSize, cellHeight))
             {
-                LightWeightVoxelElement boxElem= null;
+                LightWeightVoxelElement boxElem = null;
                 Task tsk = Task.Run(() =>
                 {
                     boxElem = new LightWeightVoxelElement(ve);
                     numProcessed += 1;
                     numLastUpdate += 1;
-                    if(numLastUpdate>= updateThreshold || numProcessed==this.NumElements)
+                    if (numLastUpdate >= updateThreshold || numProcessed == this.NumElements)
                     {
                         progress.Report(numProcessed);
                         numLastUpdate = 0;
@@ -72,11 +68,11 @@ namespace ClassLibrary1
                 yield return boxElem;
             }
         }
-        public ConcurrentBag<LightWeightVoxelElement>GenerateBoxElementParallel(float voxSize,float cellHeight,IProgress<int> progress)
+        public ConcurrentBag<LightWeightVoxelElement> GenerateBoxElementParallel(float voxSize, float cellHeight, IProgress<int> progress)
         {
             _processedCount = 0;
             int updateThreshold = this.NumElements / 100;
-            int totalCount=this.NumElements;
+            int totalCount = this.NumElements;
             ConcurrentBag<LightWeightVoxelElement> result = new ConcurrentBag<LightWeightVoxelElement>();
             var parallelOptions = new ParallelOptions
             {
@@ -86,11 +82,11 @@ namespace ClassLibrary1
             };
             Parallel.ForEach(this.Loader.meshes.Cast<MyMesh>(), parallelOptions, geom =>
             {
-                var voxElem=Mesh2VoxElem(geom,voxSize,cellHeight);
+                var voxElem = Mesh2VoxElem(geom, voxSize, cellHeight);
                 result.Add(new LightWeightVoxelElement(voxElem));
                 int currentCount = Interlocked.Increment(ref _processedCount);
                 // 5. 计算完成的百分比并报告进度
-                if(currentCount%updateThreshold==0 || currentCount ==totalCount)
+                if (currentCount % updateThreshold == 0 || currentCount == totalCount)
                     progress.Report(currentCount);
 
             });
@@ -102,10 +98,10 @@ namespace ClassLibrary1
             var meshes = this.Loader.Meshes().ToList();
             foreach (MyMesh geom in this.Loader.Meshes())
             {
-                yield return Mesh2VoxElem(geom,voxSize,cellHeight);
+                yield return Mesh2VoxElem(geom, voxSize, cellHeight);
             }
         }
-        
+
         private VoxelElement Mesh2VoxElem(MyMesh geom, float voxSize, float cellHeight)
         {
             int colSt = (int)Math.Ceiling(Math.Round(geom.min.X / voxSize, 4)) - 1;
@@ -238,7 +234,7 @@ namespace ClassLibrary1
                     }
                 }
             }
-            ve.ElementId =geom.ElementId;
+            ve.ElementId = geom.ElementId;
             return ve;
         }
         private void MergeVoxelsByGaps(ref List<VoxSortHelper>[,] mergedVoxels, double offset, out List<VoxelRangeData>[,] GapArray)
@@ -485,9 +481,9 @@ namespace ClassLibrary1
                 }
                 var faces = lstTriangles.ToArray();
                 var vertices = lstVertices.ToArray();
-                var m = new MyMesh(vertices, faces) { ElementId=mesh.ElementId};
+                var m = new MyMesh(vertices, faces) { ElementId = mesh.ElementId };
 
-                m.SetMin(new RcVec3f((float)min.X, (float)min.Y, (float)min.Z ));
+                m.SetMin(new RcVec3f((float)min.X, (float)min.Y, (float)min.Z));
                 m.SetMax(new RcVec3f((float)max.X, (float)max.Y, (float)max.Z));
                 minGlobal = Vec3.Min(min, minGlobal);
                 maxGlobal = Vec3.Max(max, maxGlobal);

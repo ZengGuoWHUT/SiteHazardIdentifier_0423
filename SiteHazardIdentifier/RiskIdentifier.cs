@@ -1,35 +1,13 @@
-﻿using Autodesk.Revit.Attributes;
-using Autodesk.Revit.DB;
-using Autodesk.Revit.DB.Electrical;
-using Autodesk.Revit.DB.ExtensibleStorage;
-using Autodesk.Revit.UI;
-using Braincase.GanttChart;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
+﻿using Newtonsoft.Json;
 using RevitVoxelzation;
 using System;
 using System.Collections.Generic;
-using System.Configuration;
 using System.Data;
-using System.Data.OleDb;
-using System.Drawing.Design;
-using System.Globalization;
-using System.IO;
 using System.Linq;
-using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Runtime.CompilerServices;
-using System.Security.Cryptography;
-using System.Security.Policy;
 using System.Text;
 using System.Threading.Tasks;
-using System.Windows.Documents;
-using System.Windows.Forms;
-using System.Windows.Media.Media3D;
-using System.Xaml;
-using static System.Net.WebRequestMethods;
-using Material = Autodesk.Revit.DB.Material;
 namespace SiteHazardIdentifier
 {
     public class RiskIdentifier
@@ -196,16 +174,16 @@ namespace SiteHazardIdentifier
                 foreach (var m in this.ElemMeshRel.Values)
                     yield return m;
             }
-            else if(this.ElemBoxRel!= null)
+            else if (this.ElemBoxRel != null)
             {
                 foreach (var m in this.ElemBoxRel.Values)
                     yield return m;
             }
-            else if(this.ElemAABBRel != null)
+            else if (this.ElemAABBRel != null)
             {
                 foreach (var m in this.ElemAABBRel.Values)
                     yield return m;
-            } 
+            }
 
         }
 
@@ -414,7 +392,7 @@ namespace SiteHazardIdentifier
             }
         }
 
-       
+
 
 
         /// <summary>
@@ -425,9 +403,9 @@ namespace SiteHazardIdentifier
         /// <param name="timeBuffer">time buffer considering the remaining of flamable gas</param>
         /// <param name="elemId_InternalId">elem-mat Id</param>
         /// <returns>chunks </returns>
-        public void IdentifyGlobalFireHazard_VoxelBox2_ConsideringHeight(double defaultFireRange,double btmOffset,double topOffset, Dictionary<string, string> elemId_InternalId, IProgress<(int, string)> progress)
+        public void IdentifyGlobalFireHazard_VoxelBox2_ConsideringHeight(double defaultFireRange, double btmOffset, double topOffset, Dictionary<string, string> elemId_InternalId, IProgress<(int, string)> progress)
         {
-            if(btmOffset==double.MinValue && topOffset==double.MaxValue)
+            if (btmOffset == double.MinValue && topOffset == double.MaxValue)
             {
                 IdentifyGlobalFireHazard_VoxelBox2(defaultFireRange, elemId_InternalId, progress);
                 return;
@@ -459,7 +437,7 @@ namespace SiteHazardIdentifier
             }
             //get combustible elements
             List<Work> igntionWorks = new List<Work>();
-            Dictionary<int,  HashSet<int>> fireIdx_ElemIdxWithinVertical = new Dictionary<int, HashSet<int>>();
+            Dictionary<int, HashSet<int>> fireIdx_ElemIdxWithinVertical = new Dictionary<int, HashSet<int>>();
             foreach (var work in this.Works)
             {
                 if (work.EmitSparks)
@@ -468,18 +446,18 @@ namespace SiteHazardIdentifier
                 }
             }
             //get fire range
-            var cix_WkIdx_btm_Top=  this.GetFireSeparationRange6(igntionWorks, elemTemp, defaultFireRange);
+            var cix_WkIdx_btm_Top = this.GetFireSeparationRange6(igntionWorks, elemTemp, defaultFireRange);
             bool[,] elemIdx_FireWorkIdx = new bool[this.ElemBoxRel.Values.Count, igntionWorks.Count];
             var range = cix_WkIdx_btm_Top.Count;
             var range10Pencent = (int)Math.Ceiling((decimal)range / 10);
             int itemProceessed = 0;
             int processDelta = 0;
-            foreach(var kvp in cix_WkIdx_btm_Top)
+            foreach (var kvp in cix_WkIdx_btm_Top)
             {
                 var cix = kvp.Item1;
                 if (cix_ElemIdx.TryGetValue(cix, out var elemIdx))
                 {
-                    foreach(var wkData in kvp.Item2)
+                    foreach (var wkData in kvp.Item2)
                     {
                         int wkIdx = wkData.Item1;
                         var btmElev = wkData.Item2;
@@ -501,11 +479,11 @@ namespace SiteHazardIdentifier
                             }
                         }
                     }
-                    
+
                 }
                 itemProceessed += 1;
                 processDelta += 1;
-                if(processDelta >= range10Pencent)
+                if (processDelta >= range10Pencent)
                 {
                     progress.Report(((int)Math.Round((double)itemProceessed / range * 100, 0), $"{itemProceessed} elements scanned, total:{range}"));
                     processDelta = 0;
@@ -579,8 +557,8 @@ namespace SiteHazardIdentifier
             var voxScale = maxAll - minAll;
             var colRng = voxScale.Col + 1;
             var rowRng = voxScale.Row + 1;
-            List<int>[,] cixLoc_ElemIdxes =new List<int>[colRng,rowRng];
-            foreach(var elem in this.ElemBoxRel.Values)
+            List<int>[,] cixLoc_ElemIdxes = new List<int>[colRng, rowRng];
+            foreach (var elem in this.ElemBoxRel.Values)
             {
                 int elemIdx = elem.GetIndex();
                 foreach (var cix in elem.Get2DProjection((int)this.VoxelSize))
@@ -588,9 +566,9 @@ namespace SiteHazardIdentifier
                     var colLoc = cix.Col - minAll.Col;
                     var rowLoc = cix.Row - minAll.Row;
                     var lst = cixLoc_ElemIdxes[colLoc, rowLoc];
-                    if (lst==null)
+                    if (lst == null)
                     {
-                        cixLoc_ElemIdxes[colLoc, rowLoc] = new List<int> (){ elemIdx };
+                        cixLoc_ElemIdxes[colLoc, rowLoc] = new List<int>() { elemIdx };
                     }
                     else
                     {
@@ -623,7 +601,7 @@ namespace SiteHazardIdentifier
                 int wkIdx = kvp.Item2;
                 var btmElev = kvp.Item3;
                 var topElev = kvp.Item4;
-                if (elemIdxes!=null)
+                if (elemIdxes != null)
                 {
                     var elemBtmSearch = btmElev + btmOffset;
                     var elemTopSearch = topElev + topOffset;
@@ -643,7 +621,7 @@ namespace SiteHazardIdentifier
                         }
                     }
                 }
-                if(curWorkIdx !=wkIdx)
+                if (curWorkIdx != wkIdx)
                 {
                     numWorkProcessed += 1;
                     curWorkIdx = wkIdx;
@@ -746,8 +724,8 @@ namespace SiteHazardIdentifier
                 //try ignite elements
                 List<HazardBoxElementInfo> elemOnFire = new List<HazardBoxElementInfo>();
                 //foreach (var elem_dis in SpatialSearchTool.GetElementsWithinDistance(ignitionElems, activeElem, tree, defaultFireRange))
-               foreach (var elem_dis in SpatialSearchTool.GetElementsWithinDistance(ignitionElems, activeElem, defaultFireRange))
-               {
+                foreach (var elem_dis in SpatialSearchTool.GetElementsWithinDistance(ignitionElems, activeElem, defaultFireRange))
+                {
                     var elem = elem_dis.elem;
                     var dis = elem_dis.distance;
                     elem.DistanceToFire = dis;
@@ -770,7 +748,7 @@ namespace SiteHazardIdentifier
             }
         }
 
-        public void IdentifyGlobalFireHazard_AABB_ConsideringVertical(double defaultFireRange, Dictionary<string, string> elemId_InternalId,double btmOffset, double topOffset, IProgress<(int, string)> progress)
+        public void IdentifyGlobalFireHazard_AABB_ConsideringVertical(double defaultFireRange, Dictionary<string, string> elemId_InternalId, double btmOffset, double topOffset, IProgress<(int, string)> progress)
         {
             //update elem index
             int i = 0;
@@ -824,7 +802,7 @@ namespace SiteHazardIdentifier
                 //try ignite elements
                 List<HazardBoxElementInfo> elemOnFire = new List<HazardBoxElementInfo>();
                 //foreach (var elem_dis in SpatialSearchTool.GetElementsWithinDistance(ignitionElems, activeElem, tree, defaultFireRange))
-                foreach (var elem_dis in SpatialSearchTool.GetElementsWithinDistance(ignitionElems, activeElem, defaultFireRange,btmOffset,topOffset))
+                foreach (var elem_dis in SpatialSearchTool.GetElementsWithinDistance(ignitionElems, activeElem, defaultFireRange, btmOffset, topOffset))
                 {
                     var elem = elem_dis.elem;
                     var dis = elem_dis.distance;
@@ -929,7 +907,7 @@ namespace SiteHazardIdentifier
                 }
             }
         }
-        public void IdentifyGlobalFireHazard_Mesh_ConsideringHeight(double defaultFireRange, double bottomOffset,double topOffset, Dictionary<string, string> elemId_InternalId, IProgress<(int, string)> progress)
+        public void IdentifyGlobalFireHazard_Mesh_ConsideringHeight(double defaultFireRange, double bottomOffset, double topOffset, Dictionary<string, string> elemId_InternalId, IProgress<(int, string)> progress)
         {
             //update elem index
             int i = 0;
@@ -979,7 +957,7 @@ namespace SiteHazardIdentifier
                 }
                 //try ignite elements
                 List<HazardMeshElementInfo> elemOnFire = new List<HazardMeshElementInfo>();
-                foreach (var elem_dis in SpatialSearchTool.GetElementsWithinDistanceConsideringVertical(workFire, ignitionElems, activeElem, defaultFireRange,bottomOffset,topOffset))
+                foreach (var elem_dis in SpatialSearchTool.GetElementsWithinDistanceConsideringVertical(workFire, ignitionElems, activeElem, defaultFireRange, bottomOffset, topOffset))
                 {
                     var elem = elem_dis.elem;
                     var dis = elem_dis.distance;
@@ -1026,10 +1004,10 @@ namespace SiteHazardIdentifier
                 {
                     int workRnk = igntionWorks.Count;
                     igntionWorks.Add(work);
-                    foreach(var elemId in work.ElementIds)
+                    foreach (var elemId in work.ElementIds)
                     {
                         this.ElemMeshRel.TryGetValue(elemId, out var elemFound);
-                        if(elemFound!=null)
+                        if (elemFound != null)
                         {
                             idx_Elems.Add((workRnk, elemFound));
                         }
@@ -1040,9 +1018,9 @@ namespace SiteHazardIdentifier
             bool[] elemIdxUnderFire = new bool[elemTemp.Count];
             HazardMeshElementInfo elemPrev = null;
             int meshScanned = 0;
-            int meshRepordLevel= (int)(elemTemp.Count * 0.05);
-            int meshNumDelta =0;
-            foreach (var elemFound in   SpatialSearchTool.GetElementsWithinDistanceConsideringVertical3(idx_Elems, elemTemp, defaultFireRange, bottomOffset, topOffset))
+            int meshRepordLevel = (int)(elemTemp.Count * 0.05);
+            int meshNumDelta = 0;
+            foreach (var elemFound in SpatialSearchTool.GetElementsWithinDistanceConsideringVertical3(idx_Elems, elemTemp, defaultFireRange, bottomOffset, topOffset))
             {
                 int workRank = elemFound.hazardWorkRank;
                 var ignitionWork = igntionWorks[workRank];
@@ -1050,13 +1028,13 @@ namespace SiteHazardIdentifier
                 var distance = elemFound.distance;
                 eBurn.DistanceToFire = distance;
                 //check elem linking to current element
-                if(!eBurn.IsElementVoidDuringWork(ignitionWork))
+                if (!eBurn.IsElementVoidDuringWork(ignitionWork))
                 {
                     var combo = new HazardCombination(eBurn, ignitionWork) { Distance = distance };
                     eBurn.Combinations.Add(combo);
                     elemIdxUnderFire[eBurn.GetIndex()] = true;
                 }
-                if(elemPrev!=eBurn)
+                if (elemPrev != eBurn)
                 {
                     elemPrev = eBurn;
                     meshScanned += 1;
@@ -1313,17 +1291,17 @@ namespace SiteHazardIdentifier
             return cix2Scan;
         }
 
-        private Dictionary<CellIndex,List<int>> GetFireSeparationRange3(List<HazardBoxElementInfo> igniteElems, double protectionRange)
+        private Dictionary<CellIndex, List<int>> GetFireSeparationRange3(List<HazardBoxElementInfo> igniteElems, double protectionRange)
         {
             //get fire spread range
             var fireRange = new FireSearchRange2D(protectionRange, this.VoxelSize);
             var searchOffset = (int)Math.Ceiling(Math.Round(protectionRange / this.VoxelSize, 3));
             //use an array to store the union of the fire range
-            Dictionary <CellIndex,List<int>> cix2Scan= new Dictionary<CellIndex, List<int>>();
-            
-            foreach(var igniteElem in igniteElems)
+            Dictionary<CellIndex, List<int>> cix2Scan = new Dictionary<CellIndex, List<int>>();
+
+            foreach (var igniteElem in igniteElems)
             {
-                var cix_FireElem = GetCellIndexRangeOfElement(new HazardBoxElementInfo[1] {igniteElem}, out var colFireMin, out var rowFireMin);
+                var cix_FireElem = GetCellIndexRangeOfElement(new HazardBoxElementInfo[1] { igniteElem }, out var colFireMin, out var rowFireMin);
                 var colFireMax = cix_FireElem.GetUpperBound(0);
                 var rowFireMax = cix_FireElem.GetUpperBound(1);
                 //check the overlap of fire and vox
@@ -1404,7 +1382,7 @@ namespace SiteHazardIdentifier
                                         var colFireGlobal = col + cix.Col + colFireMin;
                                         var rowFireGlobal = row + cix.Row + rowFireMin;
                                         cixGlobal = new CellIndex(colFireGlobal, rowFireGlobal);
-                                        if(cix2Scan .TryGetValue(cixGlobal,out var elemIdxes))
+                                        if (cix2Scan.TryGetValue(cixGlobal, out var elemIdxes))
                                         {
                                             elemIdxes.Add(igniteElem.GetIndex());
                                         }
@@ -1422,7 +1400,7 @@ namespace SiteHazardIdentifier
             return cix2Scan;
         }
 
-        private void GetFireSeparationRange4(List<Work> ignitionSource,List<HazardBoxElementInfo> boxElemInfos, double protectionRange,out Dictionary<int, List<int>> workIdx_ElemIdx,out Dictionary<int, HashSet<CellIndex>> elmeIdx_cixFire)
+        private void GetFireSeparationRange4(List<Work> ignitionSource, List<HazardBoxElementInfo> boxElemInfos, double protectionRange, out Dictionary<int, List<int>> workIdx_ElemIdx, out Dictionary<int, HashSet<CellIndex>> elmeIdx_cixFire)
         {
             //get fire spread range
             var fireRange = new FireSearchRange2D(protectionRange, this.VoxelSize);
@@ -1431,7 +1409,7 @@ namespace SiteHazardIdentifier
             HashSet<int> igniteElems = new HashSet<int>();
             workIdx_ElemIdx = new Dictionary<int, List<int>>();
             elmeIdx_cixFire = new Dictionary<int, HashSet<CellIndex>>();
-            for(int i=0;i<=ignitionSource.Count -1;i++)
+            for (int i = 0; i <= ignitionSource.Count - 1; i++)
             {
                 var curWkIdx = i;
                 var wk = ignitionSource[curWkIdx];
@@ -1439,7 +1417,7 @@ namespace SiteHazardIdentifier
                 workIdx_ElemIdx.Add(curWkIdx, elemFoundIdx);
                 foreach (var elemId in wk.ElementIds)
                 {
-                    if(this.ElemBoxRel.TryGetValue(elemId,out var elemFound))
+                    if (this.ElemBoxRel.TryGetValue(elemId, out var elemFound))
                     {
                         elemFoundIdx.Add(elemFound.GetIndex());
                         igniteElems.Add(elemFound.GetIndex());
@@ -1527,16 +1505,16 @@ namespace SiteHazardIdentifier
             }
         }
 
-        private List<(CellIndex,List<(int,int,int)>)> GetFireSeparationRange5(List<Work> ignitionWork, List<HazardBoxElementInfo> boxElemInfos, double protectionRange)
+        private List<(CellIndex, List<(int, int, int)>)> GetFireSeparationRange5(List<Work> ignitionWork, List<HazardBoxElementInfo> boxElemInfos, double protectionRange)
         {
             //get fire spread range
-            var fireRange = new FireSearchRange2D(protectionRange, this.VoxelSize);  
+            var fireRange = new FireSearchRange2D(protectionRange, this.VoxelSize);
             var searchOffset = (int)Math.Ceiling(Math.Round(protectionRange / this.VoxelSize, 3));
             //use an array to store the union of the fire range
             HashSet<int> igniteElems = new HashSet<int>();
             var workIdx_ElemIdx = new Dictionary<int, List<int>>();
-            var  elmeIdx_cixFire = new Dictionary<int, HashSet<CellIndex>>();
-            
+            var elmeIdx_cixFire = new Dictionary<int, HashSet<CellIndex>>();
+
             int radius = (int)Math.Ceiling(protectionRange / this.VoxelSize);
             CellIndex3D maxAll = CellIndex3D.MinValue;
             CellIndex3D minAll = CellIndex3D.MaxValue;
@@ -1556,113 +1534,12 @@ namespace SiteHazardIdentifier
                 }
             }
             //构造一个数组用于加速访问
-            maxAll+=new CellIndex3D(searchOffset,searchOffset,0);
-            minAll-= new CellIndex3D(searchOffset, searchOffset, 0);
+            maxAll += new CellIndex3D(searchOffset, searchOffset, 0);
+            minAll -= new CellIndex3D(searchOffset, searchOffset, 0);
             var voxScale = maxAll - minAll;
             var colRng = voxScale.Col + 1;
             var rowRng = voxScale.Row + 1;
-            List<(int,int,int)>[,] cixGenerated= new List<(int, int, int)>[colRng, rowRng];
-
-            for (int wix = 0; wix <= ignitionWork.Count - 1; wix++)
-            {
-                var curWkIdx = wix;
-                var wk = ignitionWork[curWkIdx];
-                var elemFoundIdx = new List<int>();
-                workIdx_ElemIdx.Add(curWkIdx, elemFoundIdx);
-                //group elems by their bottom and elevation size
-                Dictionary<CellIndex, List<HazardBoxElementInfo>> boxElemGroups = new Dictionary<CellIndex, List<HazardBoxElementInfo>>();
-                foreach (var elemId in wk.ElementIds)
-                {
-                    if (this.ElemBoxRel.TryGetValue(elemId, out var elemFound))
-                    {
-                        CellIndex cixVRng = new CellIndex(elemFound.BtmElev, elemFound.TopElev);
-                        if(boxElemGroups.TryGetValue(cixVRng,out var group))
-                        {
-                            group.Add(elemFound);
-                        }
-                        else
-                        {
-                            boxElemGroups.Add(cixVRng, new List<HazardBoxElementInfo>() {elemFound});
-                        }
-                    }
-                }
-
-
-                List<(CellIndex elev, List<CellIndex> cixH)> boxElev_Cix = new List<(CellIndex, List<CellIndex>)>();
-                foreach(var cix_elems in boxElemGroups)
-                {
-                    var cix = cix_elems.Key;
-                    var elems = cix_elems.Value;
-                    var btm = cix.Col;
-                    var top = cix.Row;
-                    var cixH = HazardBoxElementInfo.Get2DProjectionExpansion(elems, (int)this.VoxelSize, radius, fireRange);
-                    boxElev_Cix.Add((cix, cixH));
-                }
-
-                foreach (var cix_elems in boxElev_Cix)
-                {
-                    var cix = cix_elems.elev;
-                    var cixH = cix_elems.cixH;
-                    var btm = cix.Col;
-                    var top = cix.Row;
-                    foreach (var cixGlobal in cixH)
-                    {
-                        int colAlignAll = cixGlobal.Col - minAll.Col;
-                        int rowAlignAll = cixGlobal.Row - minAll.Row;
-                        if (cixGenerated[colAlignAll, rowAlignAll]==null)
-                        {
-                            cixGenerated[colAlignAll, rowAlignAll] =new List<(int, int, int)>() { ( wix, btm, top) };
-                        }
-                        else
-                        {
-                            cixGenerated[colAlignAll, rowAlignAll].Add((wix, btm, top));
-                        }
-                    }
-                }
-            }
-            List<(CellIndex, List<(int, int, int)>)> result = new List<(CellIndex, List<(int, int, int)>)>() { Capacity =colRng*rowRng};
-            for (int colLoc = 0; colLoc < colRng; colLoc++)
-            {
-                for(int rowLoc=0;rowLoc <rowRng;rowLoc++)
-                {
-                    var item = cixGenerated[colLoc, rowLoc];
-                    if(item!=null)
-                    {
-                        var cixGlobal =new CellIndex( colLoc + minAll.Col,rowLoc +minAll.Row);
-
-                        result.Add((cixGlobal, item));
-                    }
-                }
-            }
-            return result;
-        }
-
-        private List<(CellIndex, List<(int, int, int)>)> GetFireSeparationRange6(List<Work> ignitionWork, List<HazardBoxElementInfo> boxElemInfos, double protectionRange)
-        {
-            //get fire spread range
-            var fireRange = new FireSearchRange2D(protectionRange, this.VoxelSize);
-            var searchOffset = (int)Math.Ceiling(Math.Round(protectionRange / this.VoxelSize, 3));
-            //use an array to store the union of the fire range
-            HashSet<int> igniteElems = new HashSet<int>();
-            var workIdx_ElemIdx = new Dictionary<int, List<int>>();
-            var elmeIdx_cixFire = new Dictionary<int, HashSet<CellIndex>>();
-
-            int radius = (int)Math.Ceiling(protectionRange / this.VoxelSize);
-            CellIndex3D maxAll = CellIndex3D.MinValue;
-            CellIndex3D minAll = CellIndex3D.MaxValue;
-            //获取模型边界
-            foreach(var elem in this.ElemBoxRel.Values)
-            {
-                maxAll = CellIndex3D.Max(maxAll, elem.MaxVoxIndex);
-                minAll = CellIndex3D.Min(minAll, elem.MinVoxIndex);
-            }
-            //构造一个数组用于加速访问
-            //maxAll += new CellIndex3D(searchOffset, searchOffset, 0);
-            //minAll -= new CellIndex3D(searchOffset, searchOffset, 0);
-            var voxScale = maxAll - minAll;
-            var colRng = voxScale.Col + 1;
-            var rowRng = voxScale.Row + 1;
-            List<(int, int, int)>[] cixGenerated = new List<(int, int, int)>[colRng*rowRng];
+            List<(int, int, int)>[,] cixGenerated = new List<(int, int, int)>[colRng, rowRng];
 
             for (int wix = 0; wix <= ignitionWork.Count - 1; wix++)
             {
@@ -1710,7 +1587,108 @@ namespace SiteHazardIdentifier
                     {
                         int colAlignAll = cixGlobal.Col - minAll.Col;
                         int rowAlignAll = cixGlobal.Row - minAll.Row;
-                        if(colAlignAll <0 || colAlignAll>=colRng || rowAlignAll<0 || rowAlignAll>=rowRng)
+                        if (cixGenerated[colAlignAll, rowAlignAll] == null)
+                        {
+                            cixGenerated[colAlignAll, rowAlignAll] = new List<(int, int, int)>() { (wix, btm, top) };
+                        }
+                        else
+                        {
+                            cixGenerated[colAlignAll, rowAlignAll].Add((wix, btm, top));
+                        }
+                    }
+                }
+            }
+            List<(CellIndex, List<(int, int, int)>)> result = new List<(CellIndex, List<(int, int, int)>)>() { Capacity = colRng * rowRng };
+            for (int colLoc = 0; colLoc < colRng; colLoc++)
+            {
+                for (int rowLoc = 0; rowLoc < rowRng; rowLoc++)
+                {
+                    var item = cixGenerated[colLoc, rowLoc];
+                    if (item != null)
+                    {
+                        var cixGlobal = new CellIndex(colLoc + minAll.Col, rowLoc + minAll.Row);
+
+                        result.Add((cixGlobal, item));
+                    }
+                }
+            }
+            return result;
+        }
+
+        private List<(CellIndex, List<(int, int, int)>)> GetFireSeparationRange6(List<Work> ignitionWork, List<HazardBoxElementInfo> boxElemInfos, double protectionRange)
+        {
+            //get fire spread range
+            var fireRange = new FireSearchRange2D(protectionRange, this.VoxelSize);
+            var searchOffset = (int)Math.Ceiling(Math.Round(protectionRange / this.VoxelSize, 3));
+            //use an array to store the union of the fire range
+            HashSet<int> igniteElems = new HashSet<int>();
+            var workIdx_ElemIdx = new Dictionary<int, List<int>>();
+            var elmeIdx_cixFire = new Dictionary<int, HashSet<CellIndex>>();
+
+            int radius = (int)Math.Ceiling(protectionRange / this.VoxelSize);
+            CellIndex3D maxAll = CellIndex3D.MinValue;
+            CellIndex3D minAll = CellIndex3D.MaxValue;
+            //获取模型边界
+            foreach (var elem in this.ElemBoxRel.Values)
+            {
+                maxAll = CellIndex3D.Max(maxAll, elem.MaxVoxIndex);
+                minAll = CellIndex3D.Min(minAll, elem.MinVoxIndex);
+            }
+            //构造一个数组用于加速访问
+            //maxAll += new CellIndex3D(searchOffset, searchOffset, 0);
+            //minAll -= new CellIndex3D(searchOffset, searchOffset, 0);
+            var voxScale = maxAll - minAll;
+            var colRng = voxScale.Col + 1;
+            var rowRng = voxScale.Row + 1;
+            List<(int, int, int)>[] cixGenerated = new List<(int, int, int)>[colRng * rowRng];
+
+            for (int wix = 0; wix <= ignitionWork.Count - 1; wix++)
+            {
+                var curWkIdx = wix;
+                var wk = ignitionWork[curWkIdx];
+                var elemFoundIdx = new List<int>();
+                workIdx_ElemIdx.Add(curWkIdx, elemFoundIdx);
+                //group elems by their bottom and elevation size
+                Dictionary<CellIndex, List<HazardBoxElementInfo>> boxElemGroups = new Dictionary<CellIndex, List<HazardBoxElementInfo>>();
+                foreach (var elemId in wk.ElementIds)
+                {
+                    if (this.ElemBoxRel.TryGetValue(elemId, out var elemFound))
+                    {
+                        CellIndex cixVRng = new CellIndex(elemFound.BtmElev, elemFound.TopElev);
+                        if (boxElemGroups.TryGetValue(cixVRng, out var group))
+                        {
+                            group.Add(elemFound);
+                        }
+                        else
+                        {
+                            boxElemGroups.Add(cixVRng, new List<HazardBoxElementInfo>() { elemFound });
+                        }
+                    }
+                }
+
+
+                List<(CellIndex elev, List<CellIndex> cixH)> boxElev_Cix = new List<(CellIndex, List<CellIndex>)>();
+                foreach (var cix_elems in boxElemGroups)
+                {
+                    var cix = cix_elems.Key;
+                    var elems = cix_elems.Value;
+                    var btm = cix.Col;
+                    var top = cix.Row;
+                    var cixH = HazardBoxElementInfo.Get2DProjectionExpansion(elems, (int)this.VoxelSize, radius, fireRange);
+                    boxElev_Cix.Add((cix, cixH));
+                }
+
+                foreach (var cix_elems in boxElev_Cix)
+                {
+                    var cix = cix_elems.elev;
+                    var cixH = cix_elems.cixH;
+                    var btm = cix.Col;
+                    var top = cix.Row;
+                    foreach (var cixGlobal in cixH)
+                    {
+                        int colAlignAll = cixGlobal.Col - minAll.Col;
+                        int rowAlignAll = cixGlobal.Row - minAll.Row;
+                        if (colAlignAll < 0 || colAlignAll >= colRng || rowAlignAll < 0 || rowAlignAll >= rowRng)
                         {
                             continue;
                         }
@@ -1727,7 +1705,7 @@ namespace SiteHazardIdentifier
                 }
             }
             List<(CellIndex, List<(int, int, int)>)> result = new List<(CellIndex, List<(int, int, int)>)>() { Capacity = colRng * rowRng };
-            for(int interanlIdx=0;interanlIdx<cixGenerated.Length;interanlIdx++)
+            for (int interanlIdx = 0; interanlIdx < cixGenerated.Length; interanlIdx++)
             {
                 int colLoc = interanlIdx / rowRng;
                 int rowLoc = interanlIdx % rowRng;
@@ -2266,7 +2244,7 @@ namespace SiteHazardIdentifier
             }
         }
 
-        
+
 
     }
 
@@ -2304,7 +2282,7 @@ namespace SiteHazardIdentifier
 
 
 
-      
+
         /// <summary>
         /// Get the element Ids of the work relating to the chunk
         /// </summary>
@@ -2528,9 +2506,9 @@ namespace SiteHazardIdentifier
         {
             this.ElementId = me.ElementId;
             this.Solids = me.Solids;
-            foreach(var sld in this.Solids)
+            foreach (var sld in this.Solids)
             {
-                foreach(var v in sld.Vertices)
+                foreach (var v in sld.Vertices)
                 {
                     this.Max = Vec3.Max(v, this.Max);
                     this.Min = Vec3.Min(v, this.Min);
@@ -2621,7 +2599,7 @@ namespace SiteHazardIdentifier
             }
         }
 
-        public IEnumerable<CellIndex> Get2DProjectionExpansion(int voxSize,int voxExpansionSize)
+        public IEnumerable<CellIndex> Get2DProjectionExpansion(int voxSize, int voxExpansionSize)
         {
             //try merge voxels
             int colMinGlobal = int.MaxValue;
@@ -2647,30 +2625,30 @@ namespace SiteHazardIdentifier
             {
                 var min = box.Min;
                 var max = box.Max;
-                int colSt = min.Col / voxSize-voxExpansionSize;
-                int colEd = max.Col / voxSize - 1+voxExpansionSize;
-                int rowSt = min.Row / voxSize-voxExpansionSize;
-                int rowEd = max.Row / voxSize - 1+voxExpansionSize;
+                int colSt = min.Col / voxSize - voxExpansionSize;
+                int colEd = max.Col / voxSize - 1 + voxExpansionSize;
+                int rowSt = min.Row / voxSize - voxExpansionSize;
+                int rowEd = max.Row / voxSize - 1 + voxExpansionSize;
                 for (int col = colSt; col <= colEd; col++)
                 {
                     for (int row = rowSt; row <= rowEd; row++)
                     {
                         var colLoc = col - colMinGlobal;
                         var rowLoc = row - rowMinGlobal;
-                        if( voxGen[colLoc,rowLoc]==false)
+                        if (voxGen[colLoc, rowLoc] == false)
                         {
                             voxGen[colLoc, rowLoc] = true;
                             yield return new CellIndex(col, row);
                         }
-                       
+
                     }
                 }
 
             }
         }
 
-        
-        public static List<CellIndex> Get2DProjectionExpansion(List<HazardBoxElementInfo> elems, int voxSize,int voxExpansionSize,FireSearchRange2D fireRange)
+
+        public static List<CellIndex> Get2DProjectionExpansion(List<HazardBoxElementInfo> elems, int voxSize, int voxExpansionSize, FireSearchRange2D fireRange)
         {
             List<CellIndex> result = new List<CellIndex>();
             //try merge voxels
@@ -2678,12 +2656,12 @@ namespace SiteHazardIdentifier
             int rowMinGlobal = int.MaxValue;
             int colMaxGlobal = int.MinValue;
             int rowMaxGlobal = int.MinValue;
-            foreach(var elem in elems)
+            foreach (var elem in elems)
             {
                 var min = elem.MinVoxIndex;
                 var max = elem.MaxVoxIndex;
                 int colSt = min.Col - voxExpansionSize;
-                int colEd =max.Col + voxExpansionSize;
+                int colEd = max.Col + voxExpansionSize;
                 int rowSt = min.Row - voxExpansionSize;
                 int rowEd = max.Row + voxExpansionSize;
                 colMinGlobal = Math.Min(colMinGlobal, colSt);
@@ -2694,14 +2672,14 @@ namespace SiteHazardIdentifier
             int colRange = colMaxGlobal - colMinGlobal;
             var rowRange = rowMaxGlobal - rowMinGlobal;
             byte[,] voxGen = new byte[colMaxGlobal - colMinGlobal + 1, rowMaxGlobal - rowMinGlobal + 1];
-            List<CellIndex> potentialCixOnEdge = new List<CellIndex>() { Capacity =voxGen.Length};
+            List<CellIndex> potentialCixOnEdge = new List<CellIndex>() { Capacity = voxGen.Length };
             foreach (var elem in elems)
             {
                 foreach (var box in elem.Boxes)
                 {
                     var min = box.Min;
                     var max = box.Max;
-                    int colSt = min.Col / voxSize ;
+                    int colSt = min.Col / voxSize;
                     int colEd = max.Col / voxSize - 1;
                     int rowSt = min.Row / voxSize;
                     int rowEd = max.Row / voxSize - 1;
@@ -2717,7 +2695,7 @@ namespace SiteHazardIdentifier
                                 var cixGen = new CellIndex(col, row);
                                 result.Add(cixGen);
                                 //yield return cixGen;
-                                if(col==colSt || col==colEd || row==rowSt || row==rowEd) //vox on edge
+                                if (col == colSt || col == colEd || row == rowSt || row == rowEd) //vox on edge
                                 {
                                     potentialCixOnEdge.Add(cixGen);
                                 }
@@ -2727,11 +2705,11 @@ namespace SiteHazardIdentifier
                 }
             }
             //foreach(var cixOnEdge in potentialCixOnEdge)
-            for (int colLoc=0;colLoc <=colRange-1;colLoc++)
+            for (int colLoc = 0; colLoc <= colRange - 1; colLoc++)
             {
-                for(int rowLoc=0; rowLoc<=rowRange -1;rowLoc++)
+                for (int rowLoc = 0; rowLoc <= rowRange - 1; rowLoc++)
                 {
-                    if (voxGen[colLoc,rowLoc]!=1)
+                    if (voxGen[colLoc, rowLoc] != 1)
                     {
                         continue;
                     }
@@ -2797,24 +2775,24 @@ namespace SiteHazardIdentifier
                         }
                     }
                 }
-                
+
             }
             return result;
         }
-        public static List<CellIndex>GetOffsetPhase1ExcludeAxis(double offsetDistance,double voxSize)
+        public static List<CellIndex> GetOffsetPhase1ExcludeAxis(double offsetDistance, double voxSize)
         {
             List<CellIndex> result = new List<CellIndex>();
-            int offsetRadius = (int)(Math.Ceiling(Math.Round( offsetDistance / voxSize, 4)));
-            for(int i=1;i<=offsetDistance;i++)
+            int offsetRadius = (int)(Math.Ceiling(Math.Round(offsetDistance / voxSize, 4)));
+            for (int i = 1; i <= offsetDistance; i++)
             {
-                for(int j=1;j<=offsetDistance;j++)
+                for (int j = 1; j <= offsetDistance; j++)
                 {
-                    double dblCol = (i-1) * voxSize;
-                    double dblRow = (j-1) * voxSize;
+                    double dblCol = (i - 1) * voxSize;
+                    double dblRow = (j - 1) * voxSize;
                     double distance = Math.Sqrt(Math.Pow(dblCol, 2) + Math.Pow(dblRow, 2));
-                    if(distance<offsetDistance)
+                    if (distance < offsetDistance)
                     {
-                        result.Add(new CellIndex( i, j));
+                        result.Add(new CellIndex(i, j));
                     }
 
 
@@ -2822,33 +2800,33 @@ namespace SiteHazardIdentifier
             }
             return result;
         }
-        public static IEnumerable<(int,int)>ExpandBox(HazardVoxelBox box, int voxSize,int offsetRadius, List<CellIndex>Phase1Corner)
+        public static IEnumerable<(int, int)> ExpandBox(HazardVoxelBox box, int voxSize, int offsetRadius, List<CellIndex> Phase1Corner)
         {
             var min = box.Min;
             var max = box.Max;
-            int colSt =(min.Col / voxSize);
-            int colEd =(max.Col / voxSize) - 1;
+            int colSt = (min.Col / voxSize);
+            int colEd = (max.Col / voxSize) - 1;
             int rowSt = (min.Row / voxSize);
-            int rowEd =( max.Row / voxSize) - 1;
-            for(int col=colSt;col<=colEd;col++)
+            int rowEd = (max.Row / voxSize) - 1;
+            for (int col = colSt; col <= colEd; col++)
             {
-                for(int row=rowSt;row<=rowEd;row++)
+                for (int row = rowSt; row <= rowEd; row++)
                 {
                     yield return (col, row);
                 }
                 //add up
-                for(int row=rowEd +1;row<=rowEd +offsetRadius;row++)
+                for (int row = rowEd + 1; row <= rowEd + offsetRadius; row++)
                 {
                     yield return (col, row);
                 }
                 //add down
-                for (int row = rowSt -offsetRadius; row < rowSt; row++)
+                for (int row = rowSt - offsetRadius; row < rowSt; row++)
                 {
                     yield return (col, row);
                 }
             }
             //Add left
-            for(int col=colSt-offsetRadius;col<colSt;col++)
+            for (int col = colSt - offsetRadius; col < colSt; col++)
             {
                 for (int row = rowSt; row <= rowEd; row++)
                 {
@@ -2856,7 +2834,7 @@ namespace SiteHazardIdentifier
                 }
             }
             //add right
-            for (int col = colEd; col <=colEd +offsetRadius; col++)
+            for (int col = colEd; col <= colEd + offsetRadius; col++)
             {
                 for (int row = rowSt; row <= rowEd; row++)
                 {
@@ -2864,15 +2842,15 @@ namespace SiteHazardIdentifier
                 }
             }
             //add corner
-            
-            foreach(var cix in Phase1Corner)
+
+            foreach (var cix in Phase1Corner)
             {
                 yield return ((cix.Col + colEd, cix.Row + rowEd));
-                yield return ((-cix.Col +colSt, cix.Row + rowEd));
-                yield return ((-cix.Col +colSt, -cix.Row + rowSt));
+                yield return ((-cix.Col + colSt, cix.Row + rowEd));
+                yield return ((-cix.Col + colSt, -cix.Row + rowSt));
                 yield return ((cix.Col + colEd, -cix.Row + rowSt));
             }
-            
+
         }
 
 
@@ -2911,9 +2889,9 @@ namespace SiteHazardIdentifier
                     int colEd = max.Col / voxSize - 1;
                     int rowSt = min.Row / voxSize;
                     int rowEd = max.Row / voxSize - 1;
-                    for (int col = colSt-expansionOffset; col <= colEd+expansionOffset; col++)
+                    for (int col = colSt - expansionOffset; col <= colEd + expansionOffset; col++)
                     {
-                        for (int row = rowSt-expansionOffset; row <= rowEd+expansionOffset; row++)
+                        for (int row = rowSt - expansionOffset; row <= rowEd + expansionOffset; row++)
                         {
                             var colLoc = col - colMinGlobal;
                             var rowLoc = row - rowMinGlobal;
@@ -2922,7 +2900,7 @@ namespace SiteHazardIdentifier
                                 voxGen[colLoc, rowLoc] = true;
                                 var cixGen = new CellIndex(col, row);
                                 result.Add(cixGen);
-                                
+
                             }
                         }
                     }
@@ -2983,44 +2961,44 @@ namespace SiteHazardIdentifier
                 }
             }
             //expansion
-            for(int colLoc=0;colLoc<=colRange-1;colLoc++)
+            for (int colLoc = 0; colLoc <= colRange - 1; colLoc++)
             {
-                for(int rowLoc=0;rowLoc<=rowRange -1;rowLoc++)
+                for (int rowLoc = 0; rowLoc <= rowRange - 1; rowLoc++)
                 {
-                    if (voxGen[colLoc,rowLoc]==1)
+                    if (voxGen[colLoc, rowLoc] == 1)
                     {
                         bool eastOutsite = false;
                         bool northOutside = false;
                         bool westOutside = false;
                         bool southOutside = false;
                         //scan East
-                        if (voxGen[colLoc+1,rowLoc]==0)
+                        if (voxGen[colLoc + 1, rowLoc] == 0)
                         {
                             eastOutsite = true;
-                            for(int coldelta=1;coldelta <=voxExpansionSize;coldelta++)
+                            for (int coldelta = 1; coldelta <= voxExpansionSize; coldelta++)
                             {
                                 voxGen[colLoc + coldelta, rowLoc] = 2;
                                 result.Add(new CellIndex(colLoc + colMinGlobal + coldelta, rowLoc + rowMinGlobal));
                             }
                         }
                         //scan north
-                        if (voxGen[colLoc,rowLoc +1]==0)
+                        if (voxGen[colLoc, rowLoc + 1] == 0)
                         {
-                            for(int rowDelt=1;rowDelt <=voxExpansionSize;rowDelt ++)
+                            for (int rowDelt = 1; rowDelt <= voxExpansionSize; rowDelt++)
                             {
                                 voxGen[colLoc, rowLoc + rowDelt] = 2;
                                 result.Add(new CellIndex(colLoc + colMinGlobal, rowLoc + rowDelt + rowMinGlobal));
                             }
-                            if(eastOutsite) //add circle
+                            if (eastOutsite) //add circle
                             {
-                                
-                                foreach(var cix in cornerOffsetPhase1)
+
+                                foreach (var cix in cornerOffsetPhase1)
                                 {
                                     var colAdjLoc = colLoc + cix.Col;
                                     var rowAdjLoc = rowLoc + cix.Row;
                                     var colGlobal = colAdjLoc + colMinGlobal;
                                     var rowGlobal = rowAdjLoc + rowMinGlobal;
-                                    if (voxGen[colAdjLoc ,rowAdjLoc]==0)
+                                    if (voxGen[colAdjLoc, rowAdjLoc] == 0)
                                     {
                                         voxGen[colAdjLoc, rowAdjLoc] = 2;
                                         result.Add(new CellIndex(colGlobal, rowGlobal));
@@ -3033,12 +3011,12 @@ namespace SiteHazardIdentifier
                         if (voxGen[colLoc - 1, rowLoc] == 0)
                         {
                             westOutside = true;
-                            for (int coldelta = -voxExpansionSize; coldelta <0; coldelta++)
+                            for (int coldelta = -voxExpansionSize; coldelta < 0; coldelta++)
                             {
                                 voxGen[colLoc + coldelta, rowLoc] = 2;
                                 result.Add(new CellIndex(colLoc + colMinGlobal + coldelta, rowLoc + rowMinGlobal));
                             }
-                            if(northOutside)
+                            if (northOutside)
                             {
                                 foreach (var cix in cornerOffsetPhase1)
                                 {
@@ -3058,7 +3036,7 @@ namespace SiteHazardIdentifier
                         //scan south
                         if (voxGen[colLoc, rowLoc - 1] == 0)
                         {
-                            for (int rowDelt = -voxExpansionSize; rowDelt <0; rowDelt++)
+                            for (int rowDelt = -voxExpansionSize; rowDelt < 0; rowDelt++)
                             {
                                 voxGen[colLoc, rowLoc + rowDelt] = 2;
                                 result.Add(new CellIndex(colLoc + colMinGlobal, rowLoc + rowDelt + rowMinGlobal));
@@ -3080,7 +3058,7 @@ namespace SiteHazardIdentifier
                             }
                             southOutside = true;
                         }
-                        if(southOutside && eastOutsite)
+                        if (southOutside && eastOutsite)
                         {
                             foreach (var cix in cornerOffsetPhase1)
                             {
@@ -3128,7 +3106,7 @@ namespace SiteHazardIdentifier
             List<CellIndex> potentialCixOnEdge = new List<CellIndex>() { Capacity = voxGen.Length };
             foreach (var elem in elems)
             {
-                if(elem.ElementId == "2$2530192")
+                if (elem.ElementId == "2$2530192")
                 {
                     elemFound = true;
                 }
@@ -3144,7 +3122,7 @@ namespace SiteHazardIdentifier
                     {
                         for (int row = rowSt; row <= rowEd; row++)
                         {
-                            if(elemFound && col==54 && row==-128)
+                            if (elemFound && col == 54 && row == -128)
                             {
 
                             }
@@ -3152,14 +3130,14 @@ namespace SiteHazardIdentifier
                             var rowLoc = row - rowMinGlobal;
                             if (voxGen[colLoc, rowLoc] == 0)
                             {
-                                if(colLoc ==168 && rowLoc ==52)
+                                if (colLoc == 168 && rowLoc == 52)
                                 {
 
                                 }
                                 voxGen[colLoc, rowLoc] = 1;
                                 var cixGen = new CellIndex(col, row);
                                 result.Add(cixGen);
-                                if(col==colSt || col==colEd || row==rowSt || row==rowEd)
+                                if (col == colSt || col == colEd || row == rowSt || row == rowEd)
                                 {
                                     potentialCixOnEdge.Add(new CellIndex(colLoc, rowLoc));
                                 }
@@ -3172,18 +3150,18 @@ namespace SiteHazardIdentifier
             {
                 var colLoc = cixEdge.Col;
                 var rowLoc = cixEdge.Row;
-               
+
                 bool eastOutsite = false;
                 bool northOutside = false;
                 bool westOutside = false;
                 bool southOutside = false;
                 //scan East
-                if (voxGen[colLoc + 1, rowLoc] !=1)
+                if (voxGen[colLoc + 1, rowLoc] != 1)
                 {
                     eastOutsite = true;
                     for (int coldelta = 1; coldelta <= voxExpansionSize; coldelta++)
                     {
-                        if(voxGen[colLoc + coldelta, rowLoc]==0)
+                        if (voxGen[colLoc + coldelta, rowLoc] == 0)
                         {
                             voxGen[colLoc + coldelta, rowLoc] = 2;
                             result.Add(new CellIndex(colLoc + colMinGlobal + coldelta, rowLoc + rowMinGlobal));
@@ -3191,11 +3169,11 @@ namespace SiteHazardIdentifier
                     }
                 }
                 //scan north
-                if (voxGen[colLoc, rowLoc + 1] !=1)
+                if (voxGen[colLoc, rowLoc + 1] != 1)
                 {
                     for (int rowDelt = 1; rowDelt <= voxExpansionSize; rowDelt++)
                     {
-                        if(voxGen[colLoc, rowLoc + rowDelt] ==0)
+                        if (voxGen[colLoc, rowLoc + rowDelt] == 0)
                         {
                             voxGen[colLoc, rowLoc + rowDelt] = 2;
                             result.Add(new CellIndex(colLoc + colMinGlobal, rowLoc + rowDelt + rowMinGlobal));
@@ -3219,12 +3197,12 @@ namespace SiteHazardIdentifier
                     northOutside = true;
                 }
                 //scan West
-                if (voxGen[colLoc - 1, rowLoc] !=1)
+                if (voxGen[colLoc - 1, rowLoc] != 1)
                 {
                     westOutside = true;
                     for (int coldelta = -voxExpansionSize; coldelta < 0; coldelta++)
                     {
-                        if(voxGen[colLoc + coldelta, rowLoc] ==0)
+                        if (voxGen[colLoc + coldelta, rowLoc] == 0)
                         {
                             voxGen[colLoc + coldelta, rowLoc] = 2;
                             result.Add(new CellIndex(colLoc + colMinGlobal + coldelta, rowLoc + rowMinGlobal));
@@ -3252,7 +3230,7 @@ namespace SiteHazardIdentifier
                 {
                     for (int rowDelt = -voxExpansionSize; rowDelt < 0; rowDelt++)
                     {
-                        if( voxGen[colLoc, rowLoc + rowDelt]==0)
+                        if (voxGen[colLoc, rowLoc + rowDelt] == 0)
                         {
                             voxGen[colLoc, rowLoc + rowDelt] = 2;
                             result.Add(new CellIndex(colLoc + colMinGlobal, rowLoc + rowDelt + rowMinGlobal));
@@ -3323,7 +3301,7 @@ namespace SiteHazardIdentifier
             {
                 foreach (var box in elem.Boxes)
                 {
-                    foreach(var loc in HazardBoxElementInfo.ExpandBox(box,voxSize,voxExpansionSize,cornerOffsetPhase1))
+                    foreach (var loc in HazardBoxElementInfo.ExpandBox(box, voxSize, voxExpansionSize, cornerOffsetPhase1))
                     {
                         var colLoc = loc.Item1 - colMinGlobal;
                         var rowLoc = loc.Item2 - rowMinGlobal;
@@ -3337,7 +3315,7 @@ namespace SiteHazardIdentifier
                 }
             }
             //expansion
-           
+
             return result;
         }
 
@@ -3374,7 +3352,7 @@ namespace SiteHazardIdentifier
             }
         }
 
-       
+
 
     }
 

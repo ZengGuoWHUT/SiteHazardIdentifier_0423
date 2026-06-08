@@ -1,26 +1,18 @@
-﻿using Autodesk.Revit.Creation;
-using Autodesk.Revit.DB;
-using Autodesk.Revit.DB.Analysis;
-using Autodesk.Revit.UI;
+﻿using Autodesk.Revit.UI;
 using ICSharpCode.SharpZipLib.Zip;
-using Newtonsoft.Json;
 using RevitVoxelzation;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
-using System.Data.SqlTypes;
 using System.Diagnostics;
-using System.Drawing;
 using System.IO;
 using System.IO.Pipes;
 using System.Linq;
 using System.Net;
-using System.Security.Policy;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Controls;
 using System.Windows.Forms;
 using Document = Autodesk.Revit.DB.Document;
 using Form = System.Windows.Forms.Form;
@@ -64,22 +56,19 @@ namespace SiteHazardIdentifier
         public ExternalEvent GetMeshes { get; set; }
         public ExternalEvent LoadVoxels { get; internal set; }
         public ExternalEvent GenerateVoxels { get; internal set; }
-        public IEnumerable<LightWeightVoxelElement> LightWeightVoxelElements { get=>this.boxElements; }
+        public IEnumerable<LightWeightVoxelElement> LightWeightVoxelElements { get => this.boxElements; }
         public IEnumerable<AABBElement> AABBElements { get => this.aabbElements; }
         private async void btnVoxelize_Click(object sender, EventArgs e)
         {
-            if (this.MeshPath == null || MessageBox.Show("An existing mesh path found, rewrite it?", "Caution", MessageBoxButtons.YesNo) == DialogResult.Yes)
+            OpenFileDialog opendiag = new OpenFileDialog();
+            opendiag.Filter = "Mesh file|*.fireRiskData";
+            if (opendiag.ShowDialog() == DialogResult.OK && opendiag.FileName != string.Empty)
             {
-                OpenFileDialog opendiag = new OpenFileDialog();
-                opendiag.Filter = "Mesh file|*.fireRiskData";
-                if (opendiag.ShowDialog() == DialogResult.OK && opendiag.FileName != string.Empty)
-                {
-                    this.MeshPath = opendiag.FileName;
-                }
-                else
-                {
-                    return;
-                }
+                this.MeshPath = opendiag.FileName;
+            }
+            else
+            {
+                return;
             }
             SaveFileDialog sfg = new SaveFileDialog();
             sfg.Filter = "Compresed Voxel data|*.firelitevox";
@@ -112,7 +101,7 @@ namespace SiteHazardIdentifier
                         strMesh = file;
                     }
                     else if (Path.GetFileName(file) == "materials.csv")//mat
-                      {
+                    {
                         strMaterial = file;
                     }
                     else if (Path.GetFileName(file) == "matElemRel.csv")//elemData
@@ -142,7 +131,7 @@ namespace SiteHazardIdentifier
                 string pluginAssemblyPath = typeof(BoxElement).Assembly.Location;
                 string pluginDirectory = System.IO.Path.GetDirectoryName(pluginAssemblyPath);
                 string boxExePath = Path.Combine(pluginDirectory, "VoxelUI.exe");
-                string arguments = string.Join(" ", strMesh, this.txtVoxSize.Text.ToString(), "1",boxPath);
+                string arguments = string.Join(" ", strMesh, this.txtVoxSize.Text.ToString(), "1", boxPath);
                 //string argument = string.Join(" ", string.Empty, this.txtVoxSize.Text.ToString(), "1");
                 // 1. 开始异步等待客户端连接
                 // 2. 启动子进程（此时服务器已经在监听）
@@ -173,7 +162,7 @@ namespace SiteHazardIdentifier
                     }
                     //等待窗体关闭
                     process.WaitForExit();
-                    this.txtInfo.Text=$"Number of triangles:{numTriangles}";
+                    this.txtInfo.Text = $"Number of triangles:{numTriangles}";
                     //保存结果
                     //RevitMeshDocumenetConverter.WriteVoxelFile(voxelPath, this.Voxelizer.Origin, this.Voxelizer.VoxelSize, voxElements);
                     //generate a new file zip
@@ -195,11 +184,11 @@ namespace SiteHazardIdentifier
                 {
                     serverStream.Close();
                     //删除临时文件
-                    if(File.Exists(strMesh))
+                    if (File.Exists(strMesh))
                     {
                         File.Delete(strMesh);
                     }
-                    
+
                 }
             }
         }
@@ -658,10 +647,10 @@ namespace SiteHazardIdentifier
                     }
                     int numTris = 0;
                     //load element
-                    this.aabbElements= new List<AABBElement>();
+                    this.aabbElements = new List<AABBElement>();
                     foreach (var ae in this.Voxelizer.LoadAABBElements(strMesh))
                     {
-                        
+
                         this.aabbElements.Add(ae);
                     }
                     txtInfo.Text += $"load {this.aabbElements.Count} elements,Total triangles:{numTris}\r\n";
@@ -679,7 +668,7 @@ namespace SiteHazardIdentifier
             }
             finally
             {
-                if(Directory.Exists(strTempPath))
+                if (Directory.Exists(strTempPath))
                     Directory.Delete(strTempPath, true);
             }
         }
@@ -1051,11 +1040,11 @@ namespace SiteHazardIdentifier
             {
                 UpdateWorkAndMaterials_Mesh(out id_Mats);
             }
-            else if(this.boxElements != null && this.boxElements.Count != 0)
+            else if (this.boxElements != null && this.boxElements.Count != 0)
             {
                 UpdateWorkAndMaterials_VoxBox(out id_Mats);
             }
-            else 
+            else
             {
                 UpdateWorkAndMaterials_AABB(out id_Mats);
             }
@@ -1084,7 +1073,7 @@ namespace SiteHazardIdentifier
                 }
                 else if (this.meshElements != null && this.meshElements.Count != 0)
                 {
-                    if(this.chkEnableHeightRange.Checked ==false)
+                    if (this.chkEnableHeightRange.Checked == false)
                     {
                         identifier.IdentifyGlobalFireHazard_Mesh(double.Parse(txtRangeFire.Text), this.ElemId_InternalId, progress);
                     }
@@ -1093,15 +1082,15 @@ namespace SiteHazardIdentifier
                         identifier.IdentifyGlobalFireHazard_Mesh_ConsideringHeight(double.Parse(txtRangeFire.Text), double.Parse(txtVerticalDown.Text), double.Parse(txtVerticalUp.Text), this.ElemId_InternalId, progress);
                     }
                 }
-                else if(this.boxElements != null && this.boxElements.Count != 0)
+                else if (this.boxElements != null && this.boxElements.Count != 0)
                 {
-                    if(this.chkEnableHeightRange.Checked==false)
+                    if (this.chkEnableHeightRange.Checked == false)
                     {
                         identifier.IdentifyGlobalFireHazard_VoxelBox2(double.Parse(txtRangeFire.Text), this.ElemId_InternalId, progress);
                     }
                     else
                     {
-                        identifier.IdentifyGlobalFireHazard_VoxelBox2_ConsideringHeight2(double.Parse(txtRangeFire.Text), double.Parse(txtVerticalDown.Text),  double.Parse(txtVerticalUp.Text), this.ElemId_InternalId, progress);
+                        identifier.IdentifyGlobalFireHazard_VoxelBox2_ConsideringHeight2(double.Parse(txtRangeFire.Text), double.Parse(txtVerticalDown.Text), double.Parse(txtVerticalUp.Text), this.ElemId_InternalId, progress);
                     }
                 }
                 else
@@ -1359,13 +1348,7 @@ namespace SiteHazardIdentifier
         {
             try
             {
-                if (this.tempMatPath != null || this.wbsPath != null)
-                {
-                    if (MessageBox.Show("Save result to original voxel files?", "Caution", MessageBoxButtons.YesNo) == DialogResult.Yes)
-                    {
-                        UpdateModelAndWBS();
-                    }
-                }
+                
 
             }
             catch (Exception ex)
@@ -1842,21 +1825,21 @@ namespace SiteHazardIdentifier
                         var saveVoxPath = Path.GetDirectoryName(voxelPath);
                         var voxFileName = Path.GetFileNameWithoutExtension(voxelPath);
                         //write box data
-                        using(var saver=new StreamWriter(voxelPath, false, Encoding.Default))
+                        using (var saver = new StreamWriter(voxelPath, false, Encoding.Default))
                         {
                             foreach (var elem in elements)
                             {
                                 saver.WriteLine(elem.ElementId);
                                 saver.WriteLine(elem.Min.ToString());
                                 saver.WriteLine(elem.Max.ToString());
-                                
+
                             }
                             saver.Flush();
                             saver.Close();
                         }
 
                         //delete mesh
-                        if(voxelPath!=strMesh)
+                        if (voxelPath != strMesh)
                             File.Delete(strMesh);
                         //create a new zip
                         FastZip zip = new FastZip();

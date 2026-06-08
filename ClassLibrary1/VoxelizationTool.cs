@@ -1,18 +1,6 @@
-﻿using SiteHazardIdentifier;
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Data;
-using System.Data.SqlTypes;
+﻿using System.Data;
 using System.Diagnostics;
-using System.Drawing;
-using System.IO;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Security.Policy;
 using System.Text;
-using System.Threading.Tasks;
-using static System.Runtime.CompilerServices.RuntimeHelpers;
 
 namespace RevitVoxelzation
 {
@@ -20,15 +8,15 @@ namespace RevitVoxelzation
     {
     }
     #region Geometry Primitive
-    
-    
+
+
     public class MeshDocument
     {
         public MeshDocument Paremt { get; set; } = null;
         public string Name { get; set; }
         public List<MeshElement> Elements { get; set; } = new List<MeshElement>();
         public List<MeshDocument> LinkDocuments { get; set; } = new List<MeshDocument>();
-        
+
         public Transform Transform { get; set; }
         public MeshDocument(string name, List<MeshElement> elements, Transform transform)
         {
@@ -36,13 +24,13 @@ namespace RevitVoxelzation
             Elements = elements;
             Transform = transform;
         }
-        
+
         public IEnumerable<MeshElement> GetAllElementsInDocumentAndLink(bool excludeSymbol)
         {
             //export elem in current model
             foreach (var elem in this.Elements)
             {
-                if(excludeSymbol && elem.IsSymbol)
+                if (excludeSymbol && elem.IsSymbol)
                 {
                     continue;
                 }
@@ -61,29 +49,29 @@ namespace RevitVoxelzation
             }
         }
     }
-    public struct CellIndex:IEquatable<CellIndex>
+    public struct CellIndex : IEquatable<CellIndex>
     {
         public int Col { get; set; }
         public int Row { get; set; }
-        public bool IsInitialized { get;  }
-        public CellIndex (int col, int row)
+        public bool IsInitialized { get; }
+        public CellIndex(int col, int row)
         {
             this.Col = col;
             this.Row = row;
             IsInitialized = true;
         }
-        
-        
-        public static CellIndex operator +(CellIndex x,CellIndex y)
+
+
+        public static CellIndex operator +(CellIndex x, CellIndex y)
         {
-            return new CellIndex(x.Col+y.Col, x.Row+y.Row);
+            return new CellIndex(x.Col + y.Col, x.Row + y.Row);
         }
         public static CellIndex operator -(CellIndex x, CellIndex y)
         {
-            return new CellIndex(x.Col -y.Col, x.Row - y.Row);
+            return new CellIndex(x.Col - y.Col, x.Row - y.Row);
         }
-        
-        public static bool operator ==(CellIndex x,CellIndex y)
+
+        public static bool operator ==(CellIndex x, CellIndex y)
         {
             return x.Equals(y);
         }
@@ -100,7 +88,7 @@ namespace RevitVoxelzation
             }
             //return base.GetHashCode();
         }
-       
+
         public override string ToString()
         {
             return String.Format("{0},{1}", this.Col, this.Row);
@@ -109,7 +97,7 @@ namespace RevitVoxelzation
 
         public bool Equals(CellIndex other)
         {
-           
+
             if (other.Col == this.Col && other.Row == this.Row)
             {
                 return true;
@@ -153,11 +141,11 @@ namespace RevitVoxelzation
         public override string ToString()
         {
             return string.Format("{0}_{1}_{2}", Col, Row, Layer);
-            
+
         }
     }
 
-    
+
     /// <summary>
     /// Raw mesh element
     /// </summary>
@@ -168,28 +156,28 @@ namespace RevitVoxelzation
         public string Name { get; set; } = "NoName";
         public string Category { get; set; } = "Empty";
         public List<MeshSolid> Solids { get; set; } = new List<MeshSolid>();
-       
-        public bool IsSymbol { get; internal set; }=false;
+
+        public bool IsSymbol { get; internal set; } = false;
         public bool IsSupportElem { get; set; } = false;
         public bool IsActive { get; set; } = true;
         public bool isTransport { get; internal set; }
         public bool IsElementGeometry { get; internal set; } = true;
-        
 
-        public MeshElement ()
+
+        public MeshElement()
         {
-            
+
         }
         public MeshElement(MeshDocument document, string elementId, List<MeshSolid> solids)
         {
             this.Document = document;
             ElementId = elementId;
             Solids = solids;
-            
+
         }
         public MeshElement(string elementId, List<MeshSolid> solids)
         {
-           
+
             ElementId = elementId;
             Solids = solids;
 
@@ -202,7 +190,7 @@ namespace RevitVoxelzation
             {
                 vertices.AddRange(sld.Vertices);
             }
-            if(vertices.Count !=0)
+            if (vertices.Count != 0)
             {
                 double dblXMax = double.MinValue;
                 double dblYMax = double.MinValue;
@@ -220,18 +208,18 @@ namespace RevitVoxelzation
                     dblYMin = Math.Min(dblYMin, v.Y);
                     dblZMin = Math.Min(dblZMin, v.Z);
                 }
-                
+
                 var xScale = dblXMax - dblXMin;
                 var yScale = dblYMax - dblYMin;
-                area= xScale * yScale*2;
-                
+                area = xScale * yScale * 2;
+
             }
             return area;
         }
 
-        public bool TryGetAABB(out Vec3 min,out Vec3 max)
+        public bool TryGetAABB(out Vec3 min, out Vec3 max)
         {
-            
+
             List<Vec3> vertices = new List<Vec3>();
             foreach (var sld in this.Solids)
             {
@@ -256,7 +244,7 @@ namespace RevitVoxelzation
                     dblZMin = Math.Min(dblZMin, v.Z);
                 }
                 min = new Vec3(dblXMin, dblYMin, dblZMin);
-                max=new Vec3(dblXMax,dblYMax,dblZMax);
+                max = new Vec3(dblXMax, dblYMax, dblZMax);
                 return true;
             }
             else
@@ -273,10 +261,10 @@ namespace RevitVoxelzation
             {
                 foreach (var tri in sld.Triangles)
                 {
-                    for(int i=0;i<=2;i++)
+                    for (int i = 0; i <= 2; i++)
                     {
-                        var v0=tri.Get_Vertex(i);
-                        var v1=tri.Get_Vertex((i+1)%3);
+                        var v0 = tri.Get_Vertex(i);
+                        var v1 = tri.Get_Vertex((i + 1) % 3);
                         Vec3 edge = v1 - v0;
                         len += edge.GetLength();
                     }
@@ -300,9 +288,9 @@ namespace RevitVoxelzation
         {
             var doc = this.Document;
             Transform t = Transform.Idnentity;
-            while (doc!=null)
+            while (doc != null)
             {
-                t=(doc.Transform).Multiply (t);
+                t = (doc.Transform).Multiply(t);
                 doc = doc.Paremt;
             }
             return t;
@@ -317,7 +305,7 @@ namespace RevitVoxelzation
             }
         }
     }
-    
+
     public class MeshSolid
     {
         public MeshElement Owner { get; set; }
@@ -336,27 +324,27 @@ namespace RevitVoxelzation
             this.GridPoints = new List<GridPoint>();
             //Create an array for creating edges
             this.Triangles = new List<MeshTriangle>();
-           
+
             //use an array to store the edge index
-            Dictionary<int,Dictionary<int,int>> arrEdge = new Dictionary<int, Dictionary<int, int>>();
-            for (int i=0;i<=triangles.Count -1;i+=3)
+            Dictionary<int, Dictionary<int, int>> arrEdge = new Dictionary<int, Dictionary<int, int>>();
+            for (int i = 0; i <= triangles.Count - 1; i += 3)
             {
-                int triIndex=(int)Math.Floor((double)i/3);
-                int vi0=triangles[i];
+                int triIndex = (int)Math.Floor((double)i / 3);
+                int vi0 = triangles[i];
                 int vi1 = triangles[i + 1];
-                int vi2= triangles[i + 2];
-                int[] visInCurTri=new int[3] { vi0,vi1,vi2};
+                int vi2 = triangles[i + 2];
+                int[] visInCurTri = new int[3] { vi0, vi1, vi2 };
                 //create triangles
                 MeshTriangle tri = new MeshTriangle(this, visInCurTri);
                 this.Triangles.Add(tri);
             }
-            
+
         }
 
-        public void GetBoundingBox(out Vec3 min,out Vec3 max)
+        public void GetBoundingBox(out Vec3 min, out Vec3 max)
         {
             min = Vec3.Zero;
-            max=Vec3.Zero;
+            max = Vec3.Zero;
             if (this.Vertices.Count != 0)
             {
                 double dblXMax = double.MinValue;
@@ -377,7 +365,7 @@ namespace RevitVoxelzation
                 min = new Vec3(dblXMin, dblYMin, dblZMin);
                 max = new Vec3(dblXMax, dblYMax, dblZMax);
             }
-            
+
         }
 
         public void GenerateGridPoints(Vec3 origin, double voxelSize)
@@ -386,29 +374,29 @@ namespace RevitVoxelzation
             foreach (var v in this.Vertices)
             {
                 var v2Origin = (v - origin) / voxelSize;
-                double colRnd = Math.Round (v2Origin.X,3);
-                double rowRnd =Math.Round (v2Origin.Y,3);
-                int col =(int) Math.Floor(colRnd);
-                int row =(int) Math.Floor(rowRnd);
+                double colRnd = Math.Round(v2Origin.X, 3);
+                double rowRnd = Math.Round(v2Origin.Y, 3);
+                int col = (int)Math.Floor(colRnd);
+                int row = (int)Math.Floor(rowRnd);
                 GridPointType gpt = GridPointType.VGP;
-                if(col==colRnd && row!=rowRnd) //CGP
+                if (col == colRnd && row != rowRnd) //CGP
                 {
                     gpt = GridPointType.CGP;
                 }
-                else if(col!=colRnd && row==rowRnd)//rgp
+                else if (col != colRnd && row == rowRnd)//rgp
                 {
                     gpt = GridPointType.RGP;
                 }
-                else if(col==colRnd && row==rowRnd) //igp
+                else if (col == colRnd && row == rowRnd) //igp
                 {
                     gpt = GridPointType.IGP;
                 }
-                GridPoint gp = new GridPoint(v.X,v.Y, col, row, v.Z, gpt);
+                GridPoint gp = new GridPoint(v.X, v.Y, col, row, v.Z, gpt);
                 //result.Add(gp);
                 this.GridPoints.Add(gp);
             }
         }
-        public List<GridPoint> OutputGridPoints(Vec3 origin,double voxelSize)
+        public List<GridPoint> OutputGridPoints(Vec3 origin, double voxelSize)
         {
             var result = new List<GridPoint>();
             foreach (var v in this.Vertices)
@@ -437,21 +425,21 @@ namespace RevitVoxelzation
             }
             return result;
         }
-        public List<Voxel> GenerateVoxelByRawData(Vec3 origin,double voxSize, bool fillAfterMerge, double minGapHeight)
+        public List<Voxel> GenerateVoxelByRawData(Vec3 origin, double voxSize, bool fillAfterMerge, double minGapHeight)
         {
-           
+
             if (this.Triangles.Count == 0)
             {
-               
+
                 return new List<Voxel>();
             }
-               
+
             // get voxel boundary
             this.GetBoundingBox(out var sldMin, out var sldMax);
-            var colMin = (int)Math.Ceiling(Math.Round((sldMin.X - origin.X) / voxSize,4)) - 1;
-            var colMax= (int)Math.Floor(Math.Round((sldMax.X - origin.X) / voxSize, 4)) + 1;
+            var colMin = (int)Math.Ceiling(Math.Round((sldMin.X - origin.X) / voxSize, 4)) - 1;
+            var colMax = (int)Math.Floor(Math.Round((sldMax.X - origin.X) / voxSize, 4)) + 1;
             var rowMin = (int)Math.Ceiling(Math.Round((sldMin.Y - origin.Y) / voxSize, 4)) - 1;
-            var rowMax =(int) Math.Floor(Math.Round((sldMax.Y - origin.Y) / voxSize, 4)) + 1;
+            var rowMax = (int)Math.Floor(Math.Round((sldMax.Y - origin.Y) / voxSize, 4)) + 1;
             //Group voxel by col and Rows
             int colRng = colMax - colMin + 1;
             int rowRng = rowMax - rowMin + 1;
@@ -459,13 +447,13 @@ namespace RevitVoxelzation
             int voxIndex = 0;
             //use an array to collect solid vertices GPs
             GridPoint[] solidVerticeGPs = new GridPoint[this.Vertices.Count];
-            for(int i=0;i<this.Vertices.Count;i++)
+            for (int i = 0; i < this.Vertices.Count; i++)
             {
-                solidVerticeGPs[i]=new GridPoint(this.Vertices[i],origin,voxSize);
+                solidVerticeGPs[i] = new GridPoint(this.Vertices[i], origin, voxSize);
             }
             foreach (var tri in this.Triangles)
             {
-                foreach(var voxel in tri.GenerateVoxelData(solidVerticeGPs,origin, voxSize, voxIndex))
+                foreach (var voxel in tri.GenerateVoxelData(solidVerticeGPs, origin, voxSize, voxIndex))
                 {
                     var colLoc = voxel.ColIndex - colMin;
                     var rowLoc = voxel.RowIndex - rowMin;
@@ -482,30 +470,30 @@ namespace RevitVoxelzation
                     voxIndex += 1;
                 }
             }
-           
-            
+
+
             //merge voxels
             MergeIntersectedVoxelData(ref voxInSld, minGapHeight);
             //fill voxels
-            MergeVoxelsByGaps(ref voxInSld, minGapHeight,out var gaps);
+            MergeVoxelsByGaps(ref voxInSld, minGapHeight, out var gaps);
             //Generate Voxels
             List<Voxel> result = new List<Voxel>();
-            for(int col=0;col<=voxInSld.GetUpperBound(0);col++)
+            for (int col = 0; col <= voxInSld.GetUpperBound(0); col++)
             {
-                for(int row=0;row<=voxInSld.GetUpperBound(1);row++)
+                for (int row = 0; row <= voxInSld.GetUpperBound(1); row++)
                 {
-                    var voxData=voxInSld[col, row];
-                    if(voxData !=null && voxData.Count > 0)
+                    var voxData = voxInSld[col, row];
+                    if (voxData != null && voxData.Count > 0)
                     {
                         foreach (var vd in voxData)
                         {
                             result.Add(new Voxel()
                             {
-                                ColIndex = col+colMin,
-                                RowIndex = row+rowMin,
+                                ColIndex = col + colMin,
+                                RowIndex = row + rowMin,
                                 BottomElevation = vd.BottomElevation,
                                 TopElevation = vd.TopElevation,
-                                
+
                             });
                         }
                     }
@@ -513,7 +501,7 @@ namespace RevitVoxelzation
             }
             return result;
         }
-        public List<Voxel> GenerateVoxelByRawDataAndRecordTime(Vec3 origin, double voxSize, bool fillAfterMerge, double minGapHeight,ref double timeGenGrid,ref double tiemGenVox,ref double timeMergeVox,ref double timeFillVox)
+        public List<Voxel> GenerateVoxelByRawDataAndRecordTime(Vec3 origin, double voxSize, bool fillAfterMerge, double minGapHeight, ref double timeGenGrid, ref double tiemGenVox, ref double timeMergeVox, ref double timeFillVox)
         {
             Stopwatch sw = new Stopwatch();
             sw.Start();
@@ -542,7 +530,7 @@ namespace RevitVoxelzation
             }
             foreach (var tri in this.Triangles)
             {
-                foreach (var voxel in tri.GenerateVoxelDataByRecordTime(solidVerticeGPs, origin, voxSize, voxIndex,ref timeGenGrid,ref tiemGenVox))
+                foreach (var voxel in tri.GenerateVoxelDataByRecordTime(solidVerticeGPs, origin, voxSize, voxIndex, ref timeGenGrid, ref tiemGenVox))
                 {
                     var colLoc = voxel.ColIndex - colMin;
                     var rowLoc = voxel.RowIndex - rowMin;
@@ -614,25 +602,25 @@ namespace RevitVoxelzation
                     }
                 }
             }
-           
+
         }
 
-        
-        private List<VoxSortHelper> MergeVoxelColumnData(List<VoxSortHelper> voxelOriginal,int indexStart, bool needSort, double minGapHeight)
+
+        private List<VoxSortHelper> MergeVoxelColumnData(List<VoxSortHelper> voxelOriginal, int indexStart, bool needSort, double minGapHeight)
         {
             var faceOffset = minGapHeight / 2;
-            
+
             List<VoxSortHelper> mergedVoxels = new List<VoxSortHelper>() { Capacity = voxelOriginal.Count };
-            
+
             var voxes2Merge = voxelOriginal.ToArray();
             if (needSort)
             {
                 var btmElevArr = voxelOriginal.Select(c => c.BottomElevation).ToArray();
                 Array.Sort(btmElevArr, voxes2Merge);
-                
-               // voxes2Merge = voxelOriginal.OrderBy(c => c.BottomElevation).ToList();
+
+                // voxes2Merge = voxelOriginal.OrderBy(c => c.BottomElevation).ToList();
             }
-           
+
             int snakePointer = 0;
             int foodPointer = 1;
             var snakeVoxel = voxes2Merge[snakePointer];
@@ -646,9 +634,9 @@ namespace RevitVoxelzation
                 {
                     snakeVoxel.TopElevation = Math.Max(snakeVoxel.TopElevation, foodVoxel.TopElevation);
                     //if the snaek voxel is odd and the food is common, modify the type of the voxel as common
-                    if (snakeVoxel.IsOdd  && !(foodVoxel.IsOdd))
+                    if (snakeVoxel.IsOdd && !(foodVoxel.IsOdd))
                     {
-                        snakeVoxel.IsOdd = false ;
+                        snakeVoxel.IsOdd = false;
                     }
                     foodPointer += 1;
                 }
@@ -663,21 +651,21 @@ namespace RevitVoxelzation
             //add last snake voxel
             mergedVoxels.Add(snakeVoxel);
             //Modify the index of the merged voxel
-            for (int i=0;i<=mergedVoxels.Count -1;i++)
+            for (int i = 0; i <= mergedVoxels.Count - 1; i++)
             {
                 var mergedVoxel = mergedVoxels[i];
                 mergedVoxel.Index = indexStart + i;
-                mergedVoxels[i]= mergedVoxel;
+                mergedVoxels[i] = mergedVoxel;
             }
-            return mergedVoxels; 
+            return mergedVoxels;
         }
 
 
-        private void MergeVoxelsByGaps(ref List<VoxSortHelper>[,] mergedVoxels, double offset,out List<VoxelRangeData>[,] GapArray)
+        private void MergeVoxelsByGaps(ref List<VoxSortHelper>[,] mergedVoxels, double offset, out List<VoxelRangeData>[,] GapArray)
         {
             //Obtain the gap Range 
             int colRng = mergedVoxels.GetUpperBound(0) + 1;
-            int rowRng=mergedVoxels.GetUpperBound(1) + 1;
+            int rowRng = mergedVoxels.GetUpperBound(1) + 1;
             int gapColRng = colRng + 2;
             int gapRowRng = rowRng + 2;
             //scan mergedVoxels for finding the minimum and maximum elev of 
@@ -685,26 +673,26 @@ namespace RevitVoxelzation
             double minBtmElev = double.MaxValue;
             foreach (var voxDataCol in mergedVoxels)
             {
-                if(voxDataCol!=null)
+                if (voxDataCol != null)
                 {
                     foreach (var v in voxDataCol)
                     {
-                        maxTopElev =Math.Max (v.TopElevation , maxTopElev);
+                        maxTopElev = Math.Max(v.TopElevation, maxTopElev);
                         minBtmElev = Math.Min(minBtmElev, v.BottomElevation);
                     }
                 }
             }
             //init the gap rng
-            GapArray = new List<VoxelRangeData>[gapColRng,gapRowRng];
+            GapArray = new List<VoxelRangeData>[gapColRng, gapRowRng];
             //add gap
-            for(int col=0;col<=gapColRng-1;col++)
+            for (int col = 0; col <= gapColRng - 1; col++)
             {
-                for(int row=0;row<=gapRowRng-1;row++)
+                for (int row = 0; row <= gapRowRng - 1; row++)
                 {
                     List<VoxelRangeData> gaps = new List<VoxelRangeData>();
-                   
+
                     //try get the voxSortHelper
-                    if (col == 0 || row == 0 || col == gapColRng - 1 || row == gapRowRng - 1 || mergedVoxels[col - 1, row- 1] == null)
+                    if (col == 0 || row == 0 || col == gapColRng - 1 || row == gapRowRng - 1 || mergedVoxels[col - 1, row - 1] == null)
                     {
                         //create a dummy gap
                         VoxelRangeData dummyGap = new VoxelRangeData()
@@ -720,10 +708,10 @@ namespace RevitVoxelzation
                     }
                     else //obtain gaps between voxels
                     {
-                        var voxData = mergedVoxels[col - 1, row- 1];
+                        var voxData = mergedVoxels[col - 1, row - 1];
                         int numGaps = voxData.Count + 1;
                         //add first gap
-                        if (Math.Round ( voxData[0].BottomElevation-minBtmElev,4)!=0)
+                        if (Math.Round(voxData[0].BottomElevation - minBtmElev, 4) != 0)
                         {
                             VoxelRangeData dummyGapLower = new VoxelRangeData()
                             {
@@ -740,7 +728,7 @@ namespace RevitVoxelzation
                         {
                             gaps.Add(null);
                         }
-                        
+
                         //add other gap
                         double voxUpperElev = voxData[0].TopElevation;
                         for (int j = 0; j <= voxData.Count - 2; j++)
@@ -758,7 +746,7 @@ namespace RevitVoxelzation
                             };
                             gaps.Add(gap);
                         }
-                        if(Math.Round ( voxUpperElev -maxTopElev,4)!=0)
+                        if (Math.Round(voxUpperElev - maxTopElev, 4) != 0)
                         {
                             //add last
                             var dummyGapUpper = new VoxelRangeData()
@@ -776,41 +764,41 @@ namespace RevitVoxelzation
                         {
                             gaps.Add(null);
                         }
-                       
-                        
+
+
                     }
                     GapArray[col, row] = gaps;
                 }
             }
             //find the connection component of the gap
-            Stack<VoxelRangeData> outerRanges=new Stack<VoxelRangeData>();
+            Stack<VoxelRangeData> outerRanges = new Stack<VoxelRangeData>();
             foreach (var items in GapArray)
             {
                 foreach (var gap in items)
                 {
-                    if (gap!=null && gap.IsOutside == true)//gap is outside
+                    if (gap != null && gap.IsOutside == true)//gap is outside
                     {
                         outerRanges.Push(gap);
                     }
                 }
             }
             //flood fill
-            while(outerRanges.Count > 0)
+            while (outerRanges.Count > 0)
             {
-                var gapOut=outerRanges.Pop();
+                var gapOut = outerRanges.Pop();
                 var colOut = gapOut.ColIndex;
                 var rowOut = gapOut.RowIndex;
-              
+
                 //sacn neighbors
-                for(int colOff=-1;colOff<=1;colOff++)
+                for (int colOff = -1; colOff <= 1; colOff++)
                 {
-                    for (int rowOff=-1;rowOff<=1;rowOff++)
+                    for (int rowOff = -1; rowOff <= 1; rowOff++)
                     {
                         if (colOff != 0 && rowOff != 0)
                             continue;
                         var colNear = colOut + colOff;
                         var rowNear = rowOut + rowOff;
-                        if(colNear >=0 && colNear <gapColRng && rowNear >=0 && rowNear <gapRowRng)
+                        if (colNear >= 0 && colNear < gapColRng && rowNear >= 0 && rowNear < gapRowRng)
                         {
                             var gapsNear = GapArray[colNear, rowNear];
                             if (gapsNear != null)
@@ -818,7 +806,7 @@ namespace RevitVoxelzation
                                 //find the gap intersecting gapOut
                                 foreach (var gap2Check in gapsNear)
                                 {
-                                    if (gap2Check !=null && gap2Check.IsOutside == false && gapOut.Intersect(gap2Check))
+                                    if (gap2Check != null && gap2Check.IsOutside == false && gapOut.Intersect(gap2Check))
                                     {
                                         gap2Check.IsOutside = true;
                                         outerRanges.Push(gap2Check);
@@ -830,18 +818,18 @@ namespace RevitVoxelzation
                 }
             }
             //merge voxels based on gap
-            for(int col=0;col<colRng;col++)
+            for (int col = 0; col < colRng; col++)
             {
-                for(int row=0;row<rowRng;row++)
+                for (int row = 0; row < rowRng; row++)
                 {
-                    var voxColumn = mergedVoxels[col,row];
-                    if(voxColumn!=null)
+                    var voxColumn = mergedVoxels[col, row];
+                    if (voxColumn != null)
                     {
                         List<VoxSortHelper> snakeVoxels = new List<VoxSortHelper>();
                         var snakePt = 0;
                         var foodPt = 1;
                         var snakeVox = voxColumn[snakePt];
-                        while (foodPt<voxColumn.Count)
+                        while (foodPt < voxColumn.Count)
                         {
                             var food = voxColumn[foodPt];
                             //get gap between snake and food
@@ -853,7 +841,7 @@ namespace RevitVoxelzation
                             }
                             else
                             {
-                                snakeVoxels.Add (snakeVox);
+                                snakeVoxels.Add(snakeVox);
                                 snakePt = foodPt;
                                 snakeVox = food;
                                 foodPt += 1;
@@ -865,10 +853,10 @@ namespace RevitVoxelzation
                 }
             }
         }
-      
+
         public MeshSolid CopyByTransform(Transform trf)
         {
-            var solidCopy= new MeshSolid()
+            var solidCopy = new MeshSolid()
             {
                 Owner = this.Owner,
                 Vertices = trf.OfPoints(this.Vertices)
@@ -876,30 +864,30 @@ namespace RevitVoxelzation
             List<MeshTriangle> meshTriangles = new List<MeshTriangle>();
             foreach (var tri in this.Triangles)
             {
-                MeshTriangle newTri = new MeshTriangle(solidCopy, tri.VerticesIndex) ;
+                MeshTriangle newTri = new MeshTriangle(solidCopy, tri.VerticesIndex);
                 meshTriangles.Add(newTri);
             }
             solidCopy.Triangles = meshTriangles;
             return solidCopy;
         }
     }
-    public  class MeshInstance
+    public class MeshInstance
     {
         public Transform Transform { get; set; } = Transform.Idnentity;
 
     }
     public enum TriangleType
     {
-        Common=0,
-        ColOverlap=1,
-        RowOverlap=2,
+        Common = 0,
+        ColOverlap = 1,
+        RowOverlap = 2,
     }
-    public class MeshTriangle 
+    public class MeshTriangle
     {
         public List<GridPoint> GridPoints { get; set; }
         public MeshSolid Host { get; set; }
         public int[] VerticesIndex { get; set; }
-        
+
         public TriangleInstance Instance { get; set; }
 
         public TriangleType TriangleType { get; private set; } = TriangleType.Common;
@@ -908,15 +896,15 @@ namespace RevitVoxelzation
         {
             this.Host = host;
             this.VerticesIndex = verticesIndex;
-            this.GridPoints = new List<GridPoint>() ;
-           
+            this.GridPoints = new List<GridPoint>();
+
         }
 
         public Vec3 Get_Vertex(int index)
         {
             return this.Host.Vertices[this.VerticesIndex[index]];
         }
-       
+
         public double Get_ProjectionArea()
         {
             var v0 = this.Get_Vertex(0);
@@ -925,7 +913,7 @@ namespace RevitVoxelzation
             var v01 = v1 - v0;
             var v02 = v2 - v0;
             var v01New = new Vec3(v01.X, v01.Y, 0);
-            var v02New=new Vec3(v02.X ,v02.Y,0);
+            var v02New = new Vec3(v02.X, v02.Y, 0);
             return v01New.CrossProduct(v02New).GetLength();
         }
         public IEnumerable<GridPoint> ObtainGridPoints(Vec3 origin, double voxelSize)
@@ -975,7 +963,7 @@ namespace RevitVoxelzation
                 var p0 = this.Get_Vertex(i % 3);
                 var p1 = this.Get_Vertex((i + 1) % 3);
                 var gpP0 = new GridPoint(p0, origin, voxelSize);
-                
+
                 if (gpP0.GridType == GridPointType.CGP || gpP0.GridType == GridPointType.IGP)
                 {
                     UpdateGridPointRowRange(gpP0, colMin, ref colBdryElev_Min, ref colBdryElev_Max);
@@ -1018,7 +1006,7 @@ namespace RevitVoxelzation
                             {
                                 rowEd -= 1;
                             }
-                            foreach (var igp in  GetInnerPtByCol(col2Scan, rowSt, rowEd, v0, norm, origin, voxelSize))
+                            foreach (var igp in GetInnerPtByCol(col2Scan, rowSt, rowEd, v0, norm, origin, voxelSize))
                             {
                                 yield return igp;
                             }
@@ -1052,7 +1040,7 @@ namespace RevitVoxelzation
             var vec12 = v2 - v1;
             var norm = (vec01.CrossProduct(vec12)).Normalize();
             //var norm = Vec3.BasisZ;
-           
+
             for (int i = 0; i <= 2; i++)
             {
                 var p0 = this.Get_Vertex(i);
@@ -1074,51 +1062,51 @@ namespace RevitVoxelzation
             for (int i = 0; i <= 2; i++)
             {
                 int curPtIdx = i % 3;
-                int nextPtIdx=(i+1)%3;  
+                int nextPtIdx = (i + 1) % 3;
                 //scan vertices
                 var p0 = this.Get_Vertex(curPtIdx);
                 var p1 = this.Get_Vertex(nextPtIdx);
                 int curPtIdxGlobal = VerticesIndex[curPtIdx];
-                int nextPtIdxGlobal=VerticesIndex[nextPtIdx];
+                int nextPtIdxGlobal = VerticesIndex[nextPtIdx];
                 //check if the verticeIndex has been generated
-                if (solidVerticesGPs[curPtIdxGlobal]==null)
+                if (solidVerticesGPs[curPtIdxGlobal] == null)
                 {
                     solidVerticesGPs[curPtIdxGlobal] = new GridPoint(p0, origin, voxelSize);
                 }
                 var gpP0 = solidVerticesGPs[curPtIdxGlobal];
                 var gpP1 = solidVerticesGPs[nextPtIdxGlobal];
                 yield return gpP0;
-               
+
                 //this.GridPoints.Add(gpP0);
 
                 if (gpP0.GridType == GridPointType.CGP || gpP0.GridType == GridPointType.IGP)
                 {
                     UpdateGridPointRowRange(gpP0, colMin, ref colBdryElev_Min, ref colBdryElev_Max);
                 }
-               
+
                 //scan col
                 //List<GridPoint> gpScanCol = GetGridPointAlongXAxis(p0, p1, origin, voxelSize, true);
                 //this.GridPoints.AddRange(gpScanCol);
-               
+
                 foreach (var gp in GetGridPointAlongXAxis(p0, p1, origin, voxelSize, true))
                 {
                     UpdateGridPointRowRange(gp, colMin, ref colBdryElev_Min, ref colBdryElev_Max);
                     yield return gp;
                 }
-                
+
                 //scan row
                 bool addIGPWhenScanRow = false;
                 if (this.TriangleType == TriangleType.ColOverlap)
                 {
                     addIGPWhenScanRow = true;
                 }
-                foreach (var gp in GetGridPointAlongYAxis( p0, p1, origin, voxelSize, addIGPWhenScanRow))
+                foreach (var gp in GetGridPointAlongYAxis(p0, p1, origin, voxelSize, addIGPWhenScanRow))
                 {
                     yield return gp;
                 }
-                
+
             }
-            
+
             if (Math.Round(norm.Z, 4) != 0) ////generate inner gp, only for non-vertical voxels
             {
                 for (int col = 0; col <= colRng - 1; col++)
@@ -1146,14 +1134,14 @@ namespace RevitVoxelzation
                     }
                 }
             }
-            
+
         }
-        public void UpdateGridPointRowRange(GridPoint pt, int colMin,  ref GridPoint[] min,ref GridPoint[] max)
+        public void UpdateGridPointRowRange(GridPoint pt, int colMin, ref GridPoint[] min, ref GridPoint[] max)
         {
             var colLoc = pt.Column - colMin;
             //update max
             GridPoint maxPtLoc = max[colLoc];
-            if (maxPtLoc== null)
+            if (maxPtLoc == null)
             {
                 max[colLoc] = (GridPoint)pt;
             }
@@ -1180,7 +1168,7 @@ namespace RevitVoxelzation
                 }
             }
         }
-        private IEnumerable<GridPoint> GetGridPointAlongXAxis(Vec3 pt0,Vec3 pt1,Vec3 origin,double voxSize,bool includIGP)
+        private IEnumerable<GridPoint> GetGridPointAlongXAxis(Vec3 pt0, Vec3 pt1, Vec3 origin, double voxSize, bool includIGP)
         {
             double voxSizeInv = 1 / voxSize;
             //Get col range excluding the edge vertices
@@ -1188,10 +1176,10 @@ namespace RevitVoxelzation
             double xSt = Math.Min(pt0.X, pt1.X);
             double xEd = Math.Max(pt0.X, pt1.X);
             double dblCol0 = Math.Round((xSt - origin.X) / voxSize, 4);
-            double dblCol1 = Math.Round((xEd- origin.X) / voxSize, 4);
-            int colSt = (int)Math.Floor(dblCol0)+1;
-            int colEd = (int)Math.Ceiling(dblCol1)-1;
-            if (colSt>colEd) //if so, ignore the col range
+            double dblCol1 = Math.Round((xEd - origin.X) / voxSize, 4);
+            int colSt = (int)Math.Floor(dblCol0) + 1;
+            int colEd = (int)Math.Ceiling(dblCol1) - 1;
+            if (colSt > colEd) //if so, ignore the col range
             {
                 yield break;
             }
@@ -1200,20 +1188,20 @@ namespace RevitVoxelzation
                 Vec3 edgeDir = (pt1 - pt0);
                 double paramY_X = edgeDir.Y / edgeDir.X;
                 double paramZ_X = edgeDir.Z / edgeDir.X;
-                for (int col = colSt; col <=colEd; col++)
+                for (int col = colSt; col <= colEd; col++)
                 {
                     double x = origin.X + col * voxSize;
                     double y = paramY_X * (x - pt0.X) + pt0.Y;
                     double z = paramZ_X * (x - pt0.X) + pt0.Z;
                     double dblY = Math.Round((y - origin.Y) * voxSizeInv, 4);
-                    int intRow= (int)Math.Floor(dblY);
+                    int intRow = (int)Math.Floor(dblY);
                     GridPointType gpType = GridPointType.CGP;
-                    if(intRow ==dblY)
+                    if (intRow == dblY)
                     {
                         gpType = GridPointType.IGP;
-                        if(includIGP)
+                        if (includIGP)
                         {
-                            yield  return new GridPoint(x, y, col, intRow, z, gpType);
+                            yield return new GridPoint(x, y, col, intRow, z, gpType);
                         }
                     }
                     else
@@ -1245,20 +1233,20 @@ namespace RevitVoxelzation
                 Vec3 edgeDir = (pt1 - pt0);
                 double paramX_Y = edgeDir.X / edgeDir.Y;
                 double paramZ_Y = edgeDir.Z / edgeDir.Y;
-                
+
                 for (int row = rowSt; row <= rowEd; row++)
                 {
                     double y = origin.Y + row * voxSize;
                     double deltaY = (y - pt0.Y);
                     double x = paramX_Y * deltaY + pt0.X;
                     double z = paramZ_Y * deltaY + pt0.Z;
-                    double dblCol = Math.Round ((x - origin.X) *voxSizeInv,4);
-                    int intCol = (int) Math.Floor( dblCol);
-                    if(dblCol ==intCol && includIGP) //IGP
+                    double dblCol = Math.Round((x - origin.X) * voxSizeInv, 4);
+                    int intCol = (int)Math.Floor(dblCol);
+                    if (dblCol == intCol && includIGP) //IGP
                     {
-                        yield  return new GridPoint(x, y, intCol, row, z, GridPointType.IGP);
+                        yield return new GridPoint(x, y, intCol, row, z, GridPointType.IGP);
                     }
-                    else if(dblCol!=intCol) 
+                    else if (dblCol != intCol)
                     {
                         yield return new GridPoint(x, y, intCol, row, z, GridPointType.RGP);
                     }
@@ -1266,9 +1254,9 @@ namespace RevitVoxelzation
             }
             //return result;
         }
-        private IEnumerable<GridPoint> GetInnerPtByCol(int col, int rowSt,int rowEd,Vec3 triOrigin, Vec3 triNorm,Vec3 origin, double voxelSize)
+        private IEnumerable<GridPoint> GetInnerPtByCol(int col, int rowSt, int rowEd, Vec3 triOrigin, Vec3 triNorm, Vec3 origin, double voxelSize)
         {
-           
+
             var v0 = triOrigin;
             double paramXZ = triNorm.X / triNorm.Z;
             double paramYZ = triNorm.Y / triNorm.Z;
@@ -1280,16 +1268,16 @@ namespace RevitVoxelzation
                 GridPoint IGP = new GridPoint(x, y, col, row, z, GridPointType.IGP);
                 yield return IGP;
             }
-            
+
         }
-        
+
         /// <summary>
         /// Determine the triangle type
         /// the type is :normal,col,row
         /// </summary>
         /// <param name="origin"></param>
         /// <param name="voxelSize"></param>
-        public TriangleType GetTriangleType(Vec3 origin,double voxelSize)
+        public TriangleType GetTriangleType(Vec3 origin, double voxelSize)
         {
             //return TriangleType.Common;
             //check if the triangle overlaps to the row or col plane
@@ -1299,13 +1287,13 @@ namespace RevitVoxelzation
             var pt2 = this.Host.Vertices[this.VerticesIndex[2]];
             var vec01 = pt1 - pt0;
             var vec02 = pt2 - pt0;
-            
-            if (Math.Round( vec01.DotProduct(Vec3.BasisX),4) == 0 && Math.Round ( vec02.DotProduct(Vec3.BasisX),4) == 0) //the triangle overlaps with the col plane
+
+            if (Math.Round(vec01.DotProduct(Vec3.BasisX), 4) == 0 && Math.Round(vec02.DotProduct(Vec3.BasisX), 4) == 0) //the triangle overlaps with the col plane
             {
                 var dblCol = Math.Round((pt0.X - origin.X) / voxelSize, 4);
                 var colMin = Math.Ceiling(dblCol);
                 var colMax = Math.Floor(dblCol);
-                if(colMin ==colMax)
+                if (colMin == colMax)
                 {
                     return TriangleType.ColOverlap;
                 }
@@ -1314,12 +1302,12 @@ namespace RevitVoxelzation
                     return TriangleType.Common;
                 }
             }
-            else if (Math.Round (  vec01.DotProduct(Vec3.BasisY),4) == 0 && Math.Round ( vec02.DotProduct(Vec3.BasisY),4) == 0) //the triangle overlaps with the row plane
+            else if (Math.Round(vec01.DotProduct(Vec3.BasisY), 4) == 0 && Math.Round(vec02.DotProduct(Vec3.BasisY), 4) == 0) //the triangle overlaps with the row plane
             {
                 var dblRow = Math.Round((pt0.Y - origin.Y) / voxelSize, 4);
                 var rowMin = Math.Ceiling(dblRow);
                 var rowMax = Math.Floor(dblRow);
-                if(rowMax ==rowMin )
+                if (rowMax == rowMin)
                 {
                     return TriangleType.RowOverlap;
                 }
@@ -1333,130 +1321,8 @@ namespace RevitVoxelzation
                 return TriangleType.Common;
             }
         }
-        public IEnumerable<VoxelRawData> GenerateVoxelData(GridPoint[] solidVerticeGPs, Vec3 origin,double voxSize,int startIndex)
+        public IEnumerable<VoxelRawData> GenerateVoxelData(GridPoint[] solidVerticeGPs, Vec3 origin, double voxSize, int startIndex)
         {
-            //modify row and col max
-            int colMax = int.MinValue;
-            int colMin = int.MaxValue;
-            int rowMax = int.MinValue;
-            int rowMin = int.MaxValue;
-            for(int i=0;i<=2;i++)
-            {
-                var pt = this.Get_Vertex(i);
-                var dblCol = Math.Round((pt.X - origin.X) / voxSize, 4);
-                var dblRow=Math.Round ((pt.Y -origin.Y ) / voxSize, 4); 
-                var colLower=(int) Math.Ceiling(dblCol) -1;
-                var colUpper=(int) Math.Floor(dblCol) +1;
-                var rowLower = (int)Math.Ceiling(dblRow) - 1;
-                var rowUpper=(int)Math.Floor(dblRow) + 1;
-                rowMax =Math.Max (rowUpper,rowMax);
-                rowMin=Math.Min (rowMin ,rowLower);
-                colMax=Math.Max (colUpper,colMax);
-                colMin = Math.Min(colLower, colMin);
-            }
-            int colRng = colMax - colMin + 1;
-            int rowRng = rowMax - rowMin + 1;
-            //Create an array arrarrGPAffRng(colRng,rowRng) to group each gps
-            //VGP: can only affect the range[col,row]
-            //CGP: can only affect the range[col-1,row],[col,row];
-            //RGP:can only affect the range[col,row-1],[col,row];
-            //IGP: can affect the range[col-1,row-1], [col,row-1],[col-1,row],[col,row]
-            int[,] arrGPCount =new int[colRng, rowRng];
-            Tuple<double,double>[,] arrGP=new Tuple<double, double>[colRng, rowRng];
-            //create an array to collect grid point at solid vertices to avoid duplication
-            
-            foreach(var gp in ObtainGridPoints(origin, voxSize,solidVerticeGPs))
-            {
-                int colLoc = gp.Column - colMin;
-                int rowLoc = gp.Row - rowMin;
-                arrGPCount[colLoc, rowLoc] += 1;
-                UpdateGPRange(gp.Z, arrGP, colLoc, rowLoc);
-                switch (gp.GridType)
-                {
-                    case GridPointType.VGP:
-                        break;
-                    case GridPointType.CGP:
-                        if (colLoc - 1 >= 0)
-                        {
-                            arrGPCount[colLoc - 1, rowLoc] += 1;
-                            UpdateGPRange(gp.Z, arrGP, colLoc-1, rowLoc);
-                        }  
-                        break;
-                    case GridPointType.RGP:
-                        if (rowLoc - 1 >= 0)
-                        {
-                            arrGPCount[colLoc, rowLoc - 1] += 1;
-                            UpdateGPRange(gp.Z, arrGP, colLoc, rowLoc - 1);
-                        } 
-                        break;
-                    case GridPointType.IGP:
-                        
-                        if (rowLoc > 0 && colLoc > 0)
-                        {
-                            arrGPCount[colLoc, rowLoc - 1] += 1;
-                            arrGPCount[colLoc - 1, rowLoc] +=1 ;
-                            arrGPCount[colLoc - 1, rowLoc - 1] += 1;
-                            UpdateGPRange(gp.Z, arrGP, colLoc, rowLoc - 1);
-                            UpdateGPRange(gp.Z, arrGP, colLoc-1, rowLoc );
-                            UpdateGPRange(gp.Z, arrGP, colLoc-1, rowLoc - 1);
-                        }
-                        else if (rowLoc > 0)
-                        {
-                            arrGPCount[colLoc, rowLoc - 1] += 1;
-                            UpdateGPRange(gp.Z, arrGP, colLoc, rowLoc - 1);
-                        }
-                        else if (colLoc > 0)
-                        {
-                            arrGPCount[colLoc - 1, rowLoc] += 1;
-                            UpdateGPRange(gp.Z, arrGP, colLoc - 1, rowLoc);
-                        }
-                        break;
-                }
-            }
-            //get triangle type
-            TriangleType triType = this.TriangleType;
-            //Generate voxel data
-            for (int colLoc = 0; colLoc < colRng; colLoc++)
-            {
-                for (int rowLoc = 0; rowLoc < rowRng; rowLoc++)
-                {
-                    var item = arrGPCount[colLoc, rowLoc];
-                    if (item >= 3)
-                    {
-                        //create an voxel 
-                        double voxUpperElev = arrGP[colLoc,rowLoc].Item2;
-                        double voxLowerElev = arrGP[colLoc, rowLoc].Item1;
-                        VoxelRawData vox;
-                        switch (triType)
-                        {
-                            case TriangleType.Common:
-                                vox = new VoxelRawData() {Index =startIndex, ColIndex = colLoc + colMin,RowIndex= rowLoc + rowMin,BottomElevation= voxLowerElev, TopElevation= voxUpperElev };
-                                
-                                yield return vox;
-                                break;
-                            case TriangleType.ColOverlap:
-                                vox = new VoxelRawData() { Index =startIndex, ColIndex = colLoc + colMin,RowIndex= rowLoc + rowMin,BottomElevation= voxLowerElev,TopElevation= voxUpperElev };
-                                vox.VoxType = VoxelType.Odd;
-                                yield return vox;
-                                break;
-                            case TriangleType.RowOverlap:
-                                vox = new VoxelRawData() {Index = startIndex, ColIndex= colLoc + colMin,RowIndex= rowLoc + rowMin,BottomElevation= voxLowerElev,TopElevation= voxUpperElev };
-                                vox.VoxType = VoxelType.Odd;
-                                yield return vox;
-                                break;
-                        }
-                        startIndex += 1;
-                        //result.Add(vox);
-                    }
-                }
-            }
-            //return result;
-        }
-
-        public List<VoxelRawData> GenerateVoxelDataByRecordTime(GridPoint[] solidVerticeGPs, Vec3 origin, double voxSize, int startIndex,ref double timeGenGridPt,ref double timeVox)
-        {
-            Stopwatch sw = Stopwatch.StartNew();
-            List<VoxelRawData> result = new List<VoxelRawData>();
             //modify row and col max
             int colMax = int.MinValue;
             int colMin = int.MaxValue;
@@ -1486,14 +1352,9 @@ namespace RevitVoxelzation
             int[,] arrGPCount = new int[colRng, rowRng];
             Tuple<double, double>[,] arrGP = new Tuple<double, double>[colRng, rowRng];
             //create an array to collect grid point at solid vertices to avoid duplication
-            
-            var gps = ObtainGridPoints(origin, voxSize, solidVerticeGPs).ToList();
-            sw.Stop();
-            timeGenGridPt += sw.ElapsedMilliseconds;
-            sw.Restart();
-            foreach (var gp in gps)
+
+            foreach (var gp in ObtainGridPoints(origin, voxSize, solidVerticeGPs))
             {
-                
                 int colLoc = gp.Column - colMin;
                 int rowLoc = gp.Row - rowMin;
                 arrGPCount[colLoc, rowLoc] += 1;
@@ -1559,21 +1420,148 @@ namespace RevitVoxelzation
                             case TriangleType.Common:
                                 vox = new VoxelRawData() { Index = startIndex, ColIndex = colLoc + colMin, RowIndex = rowLoc + rowMin, BottomElevation = voxLowerElev, TopElevation = voxUpperElev };
 
-                                result.Add( vox);
+                                yield return vox;
                                 break;
                             case TriangleType.ColOverlap:
                                 vox = new VoxelRawData() { Index = startIndex, ColIndex = colLoc + colMin, RowIndex = rowLoc + rowMin, BottomElevation = voxLowerElev, TopElevation = voxUpperElev };
                                 vox.VoxType = VoxelType.Odd;
-                                result.Add( vox);
+                                yield return vox;
                                 break;
                             case TriangleType.RowOverlap:
                                 vox = new VoxelRawData() { Index = startIndex, ColIndex = colLoc + colMin, RowIndex = rowLoc + rowMin, BottomElevation = voxLowerElev, TopElevation = voxUpperElev };
                                 vox.VoxType = VoxelType.Odd;
-                                result.Add( vox);
+                                yield return vox;
                                 break;
                         }
                         startIndex += 1;
-                        
+                        //result.Add(vox);
+                    }
+                }
+            }
+            //return result;
+        }
+
+        public List<VoxelRawData> GenerateVoxelDataByRecordTime(GridPoint[] solidVerticeGPs, Vec3 origin, double voxSize, int startIndex, ref double timeGenGridPt, ref double timeVox)
+        {
+            Stopwatch sw = Stopwatch.StartNew();
+            List<VoxelRawData> result = new List<VoxelRawData>();
+            //modify row and col max
+            int colMax = int.MinValue;
+            int colMin = int.MaxValue;
+            int rowMax = int.MinValue;
+            int rowMin = int.MaxValue;
+            for (int i = 0; i <= 2; i++)
+            {
+                var pt = this.Get_Vertex(i);
+                var dblCol = Math.Round((pt.X - origin.X) / voxSize, 4);
+                var dblRow = Math.Round((pt.Y - origin.Y) / voxSize, 4);
+                var colLower = (int)Math.Ceiling(dblCol) - 1;
+                var colUpper = (int)Math.Floor(dblCol) + 1;
+                var rowLower = (int)Math.Ceiling(dblRow) - 1;
+                var rowUpper = (int)Math.Floor(dblRow) + 1;
+                rowMax = Math.Max(rowUpper, rowMax);
+                rowMin = Math.Min(rowMin, rowLower);
+                colMax = Math.Max(colUpper, colMax);
+                colMin = Math.Min(colLower, colMin);
+            }
+            int colRng = colMax - colMin + 1;
+            int rowRng = rowMax - rowMin + 1;
+            //Create an array arrarrGPAffRng(colRng,rowRng) to group each gps
+            //VGP: can only affect the range[col,row]
+            //CGP: can only affect the range[col-1,row],[col,row];
+            //RGP:can only affect the range[col,row-1],[col,row];
+            //IGP: can affect the range[col-1,row-1], [col,row-1],[col-1,row],[col,row]
+            int[,] arrGPCount = new int[colRng, rowRng];
+            Tuple<double, double>[,] arrGP = new Tuple<double, double>[colRng, rowRng];
+            //create an array to collect grid point at solid vertices to avoid duplication
+
+            var gps = ObtainGridPoints(origin, voxSize, solidVerticeGPs).ToList();
+            sw.Stop();
+            timeGenGridPt += sw.ElapsedMilliseconds;
+            sw.Restart();
+            foreach (var gp in gps)
+            {
+
+                int colLoc = gp.Column - colMin;
+                int rowLoc = gp.Row - rowMin;
+                arrGPCount[colLoc, rowLoc] += 1;
+                UpdateGPRange(gp.Z, arrGP, colLoc, rowLoc);
+                switch (gp.GridType)
+                {
+                    case GridPointType.VGP:
+                        break;
+                    case GridPointType.CGP:
+                        if (colLoc - 1 >= 0)
+                        {
+                            arrGPCount[colLoc - 1, rowLoc] += 1;
+                            UpdateGPRange(gp.Z, arrGP, colLoc - 1, rowLoc);
+                        }
+                        break;
+                    case GridPointType.RGP:
+                        if (rowLoc - 1 >= 0)
+                        {
+                            arrGPCount[colLoc, rowLoc - 1] += 1;
+                            UpdateGPRange(gp.Z, arrGP, colLoc, rowLoc - 1);
+                        }
+                        break;
+                    case GridPointType.IGP:
+
+                        if (rowLoc > 0 && colLoc > 0)
+                        {
+                            arrGPCount[colLoc, rowLoc - 1] += 1;
+                            arrGPCount[colLoc - 1, rowLoc] += 1;
+                            arrGPCount[colLoc - 1, rowLoc - 1] += 1;
+                            UpdateGPRange(gp.Z, arrGP, colLoc, rowLoc - 1);
+                            UpdateGPRange(gp.Z, arrGP, colLoc - 1, rowLoc);
+                            UpdateGPRange(gp.Z, arrGP, colLoc - 1, rowLoc - 1);
+                        }
+                        else if (rowLoc > 0)
+                        {
+                            arrGPCount[colLoc, rowLoc - 1] += 1;
+                            UpdateGPRange(gp.Z, arrGP, colLoc, rowLoc - 1);
+                        }
+                        else if (colLoc > 0)
+                        {
+                            arrGPCount[colLoc - 1, rowLoc] += 1;
+                            UpdateGPRange(gp.Z, arrGP, colLoc - 1, rowLoc);
+                        }
+                        break;
+                }
+            }
+            //get triangle type
+            TriangleType triType = this.TriangleType;
+            //Generate voxel data
+            for (int colLoc = 0; colLoc < colRng; colLoc++)
+            {
+                for (int rowLoc = 0; rowLoc < rowRng; rowLoc++)
+                {
+                    var item = arrGPCount[colLoc, rowLoc];
+                    if (item >= 3)
+                    {
+                        //create an voxel 
+                        double voxUpperElev = arrGP[colLoc, rowLoc].Item2;
+                        double voxLowerElev = arrGP[colLoc, rowLoc].Item1;
+                        VoxelRawData vox;
+                        switch (triType)
+                        {
+                            case TriangleType.Common:
+                                vox = new VoxelRawData() { Index = startIndex, ColIndex = colLoc + colMin, RowIndex = rowLoc + rowMin, BottomElevation = voxLowerElev, TopElevation = voxUpperElev };
+
+                                result.Add(vox);
+                                break;
+                            case TriangleType.ColOverlap:
+                                vox = new VoxelRawData() { Index = startIndex, ColIndex = colLoc + colMin, RowIndex = rowLoc + rowMin, BottomElevation = voxLowerElev, TopElevation = voxUpperElev };
+                                vox.VoxType = VoxelType.Odd;
+                                result.Add(vox);
+                                break;
+                            case TriangleType.RowOverlap:
+                                vox = new VoxelRawData() { Index = startIndex, ColIndex = colLoc + colMin, RowIndex = rowLoc + rowMin, BottomElevation = voxLowerElev, TopElevation = voxUpperElev };
+                                vox.VoxType = VoxelType.Odd;
+                                result.Add(vox);
+                                break;
+                        }
+                        startIndex += 1;
+
                     }
                 }
             }
@@ -1581,7 +1569,7 @@ namespace RevitVoxelzation
             timeVox += sw.ElapsedMilliseconds;
             return result;
         }
-        public void UpdateGPRange(double z,Tuple<double,double>[,] gpRng,int col,int row)
+        public void UpdateGPRange(double z, Tuple<double, double>[,] gpRng, int col, int row)
         {
             if (gpRng[col, row] == null)
             {
@@ -1597,12 +1585,12 @@ namespace RevitVoxelzation
             }
         }
 
-       
+
     }
     public class TriangleInstance
     {
         public MeshTriangle BaseTriangle { get; set; }
-       
+
         public int ColOffset { get; set; }
         public int RowOffset { get; set; }
         public double ElevationOffset { get; set; }
@@ -1646,7 +1634,7 @@ namespace RevitVoxelzation
             RowIndex = data.RowIndex;
         }
     }
-    public class Vec3:IEquatable<Vec3>
+    public class Vec3 : IEquatable<Vec3>
     {
         public double X { get; set; }
         public double Y { get; set; }
@@ -1661,7 +1649,7 @@ namespace RevitVoxelzation
             Z = z;
         }
 
-        public static Vec3 operator +(Vec3 v1,Vec3 v2)
+        public static Vec3 operator +(Vec3 v1, Vec3 v2)
         {
             return new Vec3(v1.X + v2.X, v1.Y + v2.Y, v1.Z + v2.Z);
         }
@@ -1669,7 +1657,7 @@ namespace RevitVoxelzation
         {
             return new Vec3(v1.X - v2.X, v1.Y - v2.Y, v1.Z - v2.Z);
         }
-        public static Vec3 operator *(double num,Vec3 v)
+        public static Vec3 operator *(double num, Vec3 v)
         {
             return new Vec3(num * v.X, num * v.Y, num * v.Z);
         }
@@ -1679,7 +1667,7 @@ namespace RevitVoxelzation
         }
         public static Vec3 operator /(Vec3 v, double num)
         {
-            return v*(1/num);
+            return v * (1 / num);
         }
 
         public double DotProduct(Vec3 other)
@@ -1689,9 +1677,9 @@ namespace RevitVoxelzation
 
         public Vec3 CrossProduct(Vec3 other)
         {
-            double x= this.Y * other.Z - this.Z * other.Y;
-            double y = -this.X * other.Z +this.Z * other.X;
-            double z= this.X * other.Y - this.Y * other.X;
+            double x = this.Y * other.Z - this.Z * other.Y;
+            double y = -this.X * other.Z + this.Z * other.X;
+            double z = this.X * other.Y - this.Y * other.X;
             return new Vec3(x, y, z);
         }
 
@@ -1721,8 +1709,8 @@ namespace RevitVoxelzation
         {
             get
             {
-               return new Vec3(1, 0, 0);
-            }  
+                return new Vec3(1, 0, 0);
+            }
         }
         public static Vec3 BasisY
         {
@@ -1759,7 +1747,7 @@ namespace RevitVoxelzation
             string strZ = this.Z.ToString("0.0000");
             return string.Join(saparater, strX, strY, strZ);
         }
-        
+
         public bool Equals(Vec3 other)
         {
             return (this.ToString() == other.ToString());
@@ -1780,12 +1768,12 @@ namespace RevitVoxelzation
     {
         public double U { get; set; }
         public double V { get; set; }
-        public Vec2(double u,double v)
+        public Vec2(double u, double v)
         {
             this.U = u;
             this.V = v;
         }
-        public static Vec2 operator +(Vec2 a,Vec2 b)
+        public static Vec2 operator +(Vec2 a, Vec2 b)
         {
             return new Vec2(a.U + b.U, a.V + b.V);
         }
@@ -1795,9 +1783,9 @@ namespace RevitVoxelzation
         }
         public static Vec2 operator *(double num, Vec2 a)
         {
-            return new Vec2(num*a.U ,num*a.V);
+            return new Vec2(num * a.U, num * a.V);
         }
-        public static Vec2 operator *( Vec2 a, double num)
+        public static Vec2 operator *(Vec2 a, double num)
         {
             return new Vec2(num * a.U, num * a.V);
         }
@@ -1806,7 +1794,7 @@ namespace RevitVoxelzation
             return this.U * other.U + this.V * other.V;
         }
     }
-   
+
 
     public class Transform
     {
@@ -1815,7 +1803,7 @@ namespace RevitVoxelzation
         public Vec3 BasisZ { get; set; }
         public Vec3 Origin { get; set; }
 
-        public Transform(Vec3 bassiX,Vec3 basisY,Vec3 basisZ,Vec3 origin)
+        public Transform(Vec3 bassiX, Vec3 basisY, Vec3 basisZ, Vec3 origin)
         {
             BasisX = bassiX;
             BasisY = basisY;
@@ -1832,9 +1820,9 @@ namespace RevitVoxelzation
         }
         public Vec3 OfVector(Vec3 vector)
         {
-            var x = vector.X * BasisX.X + vector.Y * BasisY.X + vector.Z * BasisZ.X ;
-            var y = vector.X * BasisX.Y + vector.Y * BasisY.Y + vector.Z * BasisZ.Y ;
-            var z = vector.X * BasisX.Z + vector.Y * BasisY.Z + vector.Z * BasisZ.Z ;
+            var x = vector.X * BasisX.X + vector.Y * BasisY.X + vector.Z * BasisZ.X;
+            var y = vector.X * BasisX.Y + vector.Y * BasisY.Y + vector.Z * BasisZ.Y;
+            var z = vector.X * BasisX.Z + vector.Y * BasisY.Z + vector.Z * BasisZ.Z;
             return new Vec3(x, y, z);
         }
         public Transform Multiply(Transform right)
@@ -1860,7 +1848,7 @@ namespace RevitVoxelzation
     {
         List<GridPoint> GridPoints { get; set; }
         void GenerateGridPoints(Vec3 origin, double voxelSize);
-        
+
     }
     public static class VoxelDocumentConverter
     {
@@ -1868,7 +1856,7 @@ namespace RevitVoxelzation
         {
             //file format:
             //1. Origin:24bytes;
-            List<byte> data = new List<byte>() { Capacity =24};
+            List<byte> data = new List<byte>() { Capacity = 24 };
             data.AddRange(BitConverter.GetBytes(vdoc.Origin.X));
             data.AddRange(BitConverter.GetBytes(vdoc.Origin.Y));
             data.AddRange(BitConverter.GetBytes(vdoc.Origin.Z));
@@ -1876,23 +1864,23 @@ namespace RevitVoxelzation
             data.AddRange(BitConverter.GetBytes(vdoc.VoxelSize));
             //3. voxels, per including  Col(4 bytes) Row (4 bytes) bottom Elevation (4 bytes) top elevation (4 bytes),
             Dictionary<Voxel, int> dicVox_Index = new Dictionary<Voxel, int>();
-            foreach(var elem in vdoc.Elements)
+            foreach (var elem in vdoc.Elements)
             {
                 foreach (var v in elem.Voxels)
                 {
-                    dicVox_Index.Add(v,dicVox_Index.Count);
+                    dicVox_Index.Add(v, dicVox_Index.Count);
                 }
             }
             data.AddRange(BitConverter.GetBytes(dicVox_Index.Keys.Count));
             foreach (var vox_idx in dicVox_Index)
             {
                 var vox = vox_idx.Key;
-                List<byte> voxBytes = new List<byte>() { Capacity =40};
+                List<byte> voxBytes = new List<byte>() { Capacity = 40 };
                 voxBytes.AddRange(BitConverter.GetBytes(vox.ColIndex));
                 voxBytes.AddRange(BitConverter.GetBytes(vox.RowIndex));
-                voxBytes.AddRange (BitConverter.GetBytes(vox.BottomElevation));
+                voxBytes.AddRange(BitConverter.GetBytes(vox.BottomElevation));
                 voxBytes.AddRange(BitConverter.GetBytes(vox.TopElevation));
-               
+
                 data.AddRange(voxBytes);
             }
             //4. voxELem， per include：ID，Name,Category,VoxelIndexes,isSupport, isActive，isTransport
@@ -1904,8 +1892,8 @@ namespace RevitVoxelzation
                 string strId = ve.ElementId;
                 var strByte = Encoding.Default.GetBytes(strId);
                 var idLen = (byte)strByte.Length;
-                docData.Add (idLen);
-                docData.AddRange (strByte);
+                docData.Add(idLen);
+                docData.AddRange(strByte);
                 //name
                 string strNa = ve.Name;
                 strByte = Encoding.Default.GetBytes(strNa);
@@ -1918,28 +1906,28 @@ namespace RevitVoxelzation
                 idLen = (byte)strByte.Length;
                 docData.Add(idLen);
                 docData.AddRange(strByte);
-                
+
                 //add voxIndex
                 docData.AddRange(BitConverter.GetBytes(ve.Voxels.Count));
                 foreach (var v in ve.Voxels)
                 {
                     var index = dicVox_Index[v];
-                    docData.AddRange (BitConverter.GetBytes(index));
+                    docData.AddRange(BitConverter.GetBytes(index));
                 }
                 docData.AddRange(BitConverter.GetBytes(ve.IsSupportElement));
                 docData.AddRange(BitConverter.GetBytes(ve.IsActive));
                 docData.AddRange(BitConverter.GetBytes(ve.IsTransportElement));
             }
             data.AddRange(docData);
-            
+
             //save file
-            FileStream fs = new FileStream(saveFilePath,FileMode.OpenOrCreate);
+            FileStream fs = new FileStream(saveFilePath, FileMode.OpenOrCreate);
             fs.Write(data.ToArray(), 0, data.Count);
             fs.Flush();
             fs.Close();
         }
-        
-        public static void SaveAsCSV(VoxelDocument vdoc,string saveFilePath)
+
+        public static void SaveAsCSV(VoxelDocument vdoc, string saveFilePath)
         {
             StreamWriter sw = new StreamWriter(saveFilePath, false, Encoding.Default);
             try
@@ -1957,11 +1945,11 @@ namespace RevitVoxelzation
                         string strRow = v.RowIndex.ToString();
                         string strBtmElev = Math.Round(v.BottomElevation * 304.8, 0).ToString();
                         string strTopElev = Math.Round(v.TopElevation * 304.8, 0).ToString();
-                        sw.WriteLine(string.Format("{0},{1},{2},{3},{4},{5}", strId, strCol, strRow, strBtmElev, strTopElev,voxelSize));
+                        sw.WriteLine(string.Format("{0},{1},{2},{3},{4},{5}", strId, strCol, strRow, strBtmElev, strTopElev, voxelSize));
                     }
                 }
             }
-            
+
             finally
             {
                 sw.Flush();
@@ -1973,7 +1961,7 @@ namespace RevitVoxelzation
             VoxelDocument voxDocMerge = new VoxelDocument();
             foreach (var fileName in filePaths)
             {
-                var doc= LoadVoxelDocument(fileName);
+                var doc = LoadVoxelDocument(fileName);
                 voxDocMerge.Origin = doc.Origin;
                 voxDocMerge.VoxelSize = doc.VoxelSize;
                 voxDocMerge.Elements.Capacity = voxDocMerge.Elements.Count + doc.Elements.Count;
@@ -1988,46 +1976,46 @@ namespace RevitVoxelzation
             FileStream fs = new FileStream(filePath, FileMode.Open);
             BinaryReader br = new BinaryReader(fs, Encoding.Default);
             double[] dblVec3 = new double[3];
-            for(int i=0;i<=2;i++)
+            for (int i = 0; i <= 2; i++)
             {
-                dblVec3[i]=  BitConverter.ToDouble(br.ReadBytes(8), 0);
+                dblVec3[i] = BitConverter.ToDouble(br.ReadBytes(8), 0);
             }
-            Vec3 origin=new Vec3(dblVec3[0], dblVec3[1],dblVec3[2]);
+            Vec3 origin = new Vec3(dblVec3[0], dblVec3[1], dblVec3[2]);
             result.Origin = origin;
             //vox size
-            double dblVoxSize=BitConverter.ToDouble(br.ReadBytes(8), 0);
+            double dblVoxSize = BitConverter.ToDouble(br.ReadBytes(8), 0);
             result.VoxelSize = dblVoxSize;
             //Read voxels
             //3.voxels, per including  Col(4 bytes) Row(4 bytes) bottom Elevation(4 bytes) top elevation(4 bytes)
             int numVoxels = BitConverter.ToInt32(br.ReadBytes(4), 0);
-            List<Voxel> voxels = new List<Voxel>() { Capacity=numVoxels};
+            List<Voxel> voxels = new List<Voxel>() { Capacity = numVoxels };
             //List<int[]> voxAdjRel = new List<int[]>();
-            for(int i=0;i<=numVoxels-1;i++)
+            for (int i = 0; i <= numVoxels - 1; i++)
             {
                 var vox = new Voxel();
                 //read col
-                vox.ColIndex=BitConverter.ToInt32(br.ReadBytes(4), 0);
+                vox.ColIndex = BitConverter.ToInt32(br.ReadBytes(4), 0);
                 //read row
-                vox.RowIndex= BitConverter.ToInt32(br.ReadBytes(4), 0);
+                vox.RowIndex = BitConverter.ToInt32(br.ReadBytes(4), 0);
                 //read btmElev
                 vox.BottomElevation = BitConverter.ToDouble(br.ReadBytes(8), 0);
                 //read topElev
-                vox.TopElevation= BitConverter.ToDouble(br.ReadBytes(8), 0);
+                vox.TopElevation = BitConverter.ToDouble(br.ReadBytes(8), 0);
                 vox.TopAdjVoxels = new Voxel[4];
-                
+
                 voxels.Add(vox);
             }
             //4. voxELem， per include：ID，Category, Name,VoxelIndexes,issppuot, isActive,isTransport
             int numElem = BitConverter.ToInt32(br.ReadBytes(4), 0);
-            for(int i=0;i<=numElem-1;i++)
+            for (int i = 0; i <= numElem - 1; i++)
             {
                 var voxElem = new VoxelElement();
                 voxElem.Voxels = new List<Voxel>();
                 result.Elements.Add(voxElem);
                 //Id
                 byte strLen = br.ReadByte();
-                var stringByte=new byte[strLen];
-                for(int j=0;j<strLen;j++)
+                var stringByte = new byte[strLen];
+                for (int j = 0; j < strLen; j++)
                 {
                     stringByte[j] = br.ReadByte();
                 }
@@ -2053,9 +2041,9 @@ namespace RevitVoxelzation
                 voxElem.Category = cat;
                 //vox
                 int voxCount = BitConverter.ToInt32(br.ReadBytes(4), 0);
-                for(int j=0;j<voxCount;j++)
+                for (int j = 0; j < voxCount; j++)
                 {
-                    int voxIdx=BitConverter.ToInt32(br.ReadBytes(4), 0);
+                    int voxIdx = BitConverter.ToInt32(br.ReadBytes(4), 0);
                     voxElem.Voxels.Add(voxels[voxIdx]);
                 }
                 voxElem.IsSupportElement = br.ReadBoolean();
@@ -2074,24 +2062,24 @@ namespace RevitVoxelzation
         private FileStream fs;
         private int bufferSize;
         private string tempPath; //file recording element raw data
-       
+
         public bool DeleteAfterRead { get; set; } = true;
         public int ElementCount { get; set; } = 0;
         //this is used to store the box areas of each element
         public List<double> MeshBoxAreas { get; set; } = new List<double>();
         public VoxelDocument VoxDoc { get; private set; }
-        
+
         public string GetPath()
         {
             return this.tempPath;
         }
-        
-        public void SetPath(string value,bool deleteAfterRead)
+
+        public void SetPath(string value, bool deleteAfterRead)
         {
             this.tempPath = value;
             this.DeleteAfterRead = deleteAfterRead;
         }
-        public MeshElement MeshElement { get;  set; }
+        public MeshElement MeshElement { get; set; }
         /// <summary>
         /// Constructor
         /// </summary>
@@ -2099,13 +2087,13 @@ namespace RevitVoxelzation
         /// <param name="bufferSize">the buffer size in bytes used for temporarily store the voxel element
         /// the data will be transfered to temp files after when the buffer is full, meanwhile the buffer is cleared for
         /// new data to add</param>
-        public TempFileSaver(VoxelDocument doc,int bufferSize)
+        public TempFileSaver(VoxelDocument doc, int bufferSize)
         {
             this.VoxDoc = doc;
-            string elementRawFile= Path.GetTempFileName();
+            string elementRawFile = Path.GetTempFileName();
             tempPath = elementRawFile;
-            this. bufferSize = bufferSize;
-            fs=new FileStream (elementRawFile, FileMode.Create);
+            this.bufferSize = bufferSize;
+            fs = new FileStream(elementRawFile, FileMode.Create);
             buffer = new List<byte>() { Capacity = bufferSize };
             //file format:
             //1. Origin:24bytes;
@@ -2125,7 +2113,7 @@ namespace RevitVoxelzation
             var elemData = ConvertElement2Bytes(voxElem, out var dataSize);
             buffer.AddRange(elemData);
             BinaryWriter bw = new BinaryWriter(fs);
-            if(buffer.Count >bufferSize) //write file
+            if (buffer.Count > bufferSize) //write file
             {
                 fs.Position = fs.Length;
                 fs.Write(buffer.ToArray(), 0, buffer.Count);
@@ -2140,15 +2128,15 @@ namespace RevitVoxelzation
         /// </summary>
         public void Finish()
         {
-            if(buffer.Count !=0)
+            if (buffer.Count != 0)
             {
                 fs.Write(buffer.ToArray(), 0, buffer.Count);
             }
             fs.Flush();
             fs.Close();
         }
-        
-        public TempFileSaver(int bufferSize,int elementCount)
+
+        public TempFileSaver(int bufferSize, int elementCount)
         {
             this.buffer = new List<byte>() { Capacity = bufferSize };
             this.bufferSize = bufferSize;
@@ -2166,14 +2154,14 @@ namespace RevitVoxelzation
         {
             var elemData = ConvertElement2Bytes(elem, out var size);
             this.buffer.AddRange(elemData);
-            if(this.buffer .Count >this.bufferSize)
+            if (this.buffer.Count > this.bufferSize)
             {
-                fs.Write (this.buffer.ToArray(),0,this.buffer.Count);
+                fs.Write(this.buffer.ToArray(), 0, this.buffer.Count);
                 fs.Flush();
                 this.buffer.Clear();
                 this.buffer.Capacity = this.bufferSize;
             }
-            
+
         }
         /// <summary>
         /// Write mesh element to temp file
@@ -2182,9 +2170,9 @@ namespace RevitVoxelzation
         /// <param name="calculateElementSurfaceArea">
         /// Whether or not calculate Element Box Area
         /// </param>
-        public void WriteMeshElement(MeshElement elem,bool calculateElementSurfaceArea)
+        public void WriteMeshElement(MeshElement elem, bool calculateElementSurfaceArea)
         {
-            if(calculateElementSurfaceArea)
+            if (calculateElementSurfaceArea)
             {
                 //get element box area
                 double boxArea = elem.GetTriangleLength();
@@ -2200,7 +2188,7 @@ namespace RevitVoxelzation
         /// <param name="elem"></param>
         /// <param name="dataSize"></param>
         /// <returns></returns>
-        public static byte[] ConvertElement2Bytes(MeshElement elem,out int dataSize)
+        public static byte[] ConvertElement2Bytes(MeshElement elem, out int dataSize)
         {
             List<byte> elemData = new List<byte>();
             var ve = elem;
@@ -2240,7 +2228,7 @@ namespace RevitVoxelzation
                 elemData.AddRange(BitConverter.GetBytes(sld.Triangles.Count));
                 foreach (var tri in sld.Triangles)
                 {
-                    for(int i=0;i<=2;i++)
+                    for (int i = 0; i <= 2; i++)
                     {
                         elemData.AddRange(BitConverter.GetBytes(tri.VerticesIndex[i]));
                     }
@@ -2254,7 +2242,7 @@ namespace RevitVoxelzation
             dataSize = elemData.Count;
             return elemData.ToArray(); ;
         }
-        private  byte[] ConvertElement2Bytes(VoxelElement elem, out int dataSize)
+        private byte[] ConvertElement2Bytes(VoxelElement elem, out int dataSize)
         {
             List<byte> elemData = new List<byte>();
             var ve = elem;
@@ -2297,11 +2285,11 @@ namespace RevitVoxelzation
             return elemData.ToArray();
         }
 
-        public  VoxelDocument ReadVoxelsFromTempFiles()
+        public VoxelDocument ReadVoxelsFromTempFiles()
         {
             //1. Origin:24bytes;
             VoxelDocument result = new VoxelDocument();
-            this.fs= new FileStream(tempPath, FileMode.Open);
+            this.fs = new FileStream(tempPath, FileMode.Open);
             BinaryReader br = new BinaryReader(fs, Encoding.Default);
             try
             {
@@ -2318,7 +2306,7 @@ namespace RevitVoxelzation
                 result.VoxelSize = br.ReadDouble();
                 dataSizeRead += 8;
                 //read elements
-                while(dataSizeRead<fs.Length)
+                while (dataSizeRead < fs.Length)
                 {
                     var voxElem = new VoxelElement();
                     voxElem.Voxels = new List<Voxel>();
@@ -2330,7 +2318,7 @@ namespace RevitVoxelzation
                     {
                         stringByte[j] = br.ReadByte();
                     }
-                    dataSizeRead += strLen+1;
+                    dataSizeRead += strLen + 1;
                     var elemId = Encoding.Default.GetString(stringByte);
                     voxElem.ElementId = elemId;
                     //Name
@@ -2384,7 +2372,7 @@ namespace RevitVoxelzation
                 }
                 return result;
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 return null;
             }
@@ -2396,7 +2384,7 @@ namespace RevitVoxelzation
             }
         }
 
-        public void SaveAs(string newPath,bool replaceTempFile)
+        public void SaveAs(string newPath, bool replaceTempFile)
         {
 
             File.Copy(this.tempPath, newPath, true);
@@ -2413,7 +2401,7 @@ namespace RevitVoxelzation
         /// <returns></returns>
         public IEnumerable<MeshElement> ReadMeshElementFromTempFile()
         {
-            foreach (var me in ReadMeshElement(this.tempPath,this.DeleteAfterRead))
+            foreach (var me in ReadMeshElement(this.tempPath, this.DeleteAfterRead))
             {
                 yield return me;
             }
@@ -2423,8 +2411,8 @@ namespace RevitVoxelzation
         /// </summary>
         /// <param name="groupNumber"></param>
         /// <returns></returns>
-       
-        
+
+
         /// <summary>
         /// 
         /// </summary>
@@ -2445,8 +2433,8 @@ namespace RevitVoxelzation
                 fs.Close();
             }
         }
-        
-        public IEnumerable<MeshElement> ReadMeshElement(string filePath,bool deleteAfterRead)
+
+        public IEnumerable<MeshElement> ReadMeshElement(string filePath, bool deleteAfterRead)
         {
             this.fs = new FileStream(filePath, FileMode.Open);
             BinaryReader br = new BinaryReader(fs, Encoding.Default);
@@ -2461,7 +2449,7 @@ namespace RevitVoxelzation
                 //for (int i = 0; i < numElems; i++)
                 while (byteLoaded < fileSize)
                 {
-                    
+
                     MeshElement me = new MeshElement();
                     //read element
                     //Id
@@ -2472,7 +2460,7 @@ namespace RevitVoxelzation
                         stringByte[j] = br.ReadByte();
                     }
                     byteLoaded += 1 + stringByte.Length;
-                   
+
                     var elemId = Encoding.Default.GetString(stringByte);
                     me.ElementId = elemId;
                     //Name
@@ -2504,7 +2492,7 @@ namespace RevitVoxelzation
                         me.Solids.Add(sld);
                         int numVertices = br.ReadInt32();
                         byteLoaded += 4;
-                       
+
                         sld.Vertices.Capacity = numVertices;
                         for (int k = 0; k < numVertices; k++)
                         {
@@ -2512,14 +2500,14 @@ namespace RevitVoxelzation
                             double y = br.ReadDouble();
                             double z = br.ReadDouble();
                             byteLoaded += 24;
-                           
+
                             Vec3 v3 = new Vec3(x, y, z);
                             sld.Vertices.Add(v3);
                         }
                         //restore triangle
                         int numTriangles = br.ReadInt32();
                         byteLoaded += 4;
-                        
+
                         sld.Triangles.Capacity = numTriangles;
                         for (int k = 0; k < numTriangles; k++)
                         {
@@ -2529,7 +2517,7 @@ namespace RevitVoxelzation
                             {
                                 tri.VerticesIndex[t] = br.ReadInt32();
                                 byteLoaded += 4;
-                               
+
                             }
 
                         }
@@ -2541,10 +2529,10 @@ namespace RevitVoxelzation
                     yield return me;
                 }
             }
-           
+
             finally
             {
-                
+
                 br.Close();
                 fs.Close();
                 if (deleteAfterRead)
@@ -2552,37 +2540,37 @@ namespace RevitVoxelzation
             }
 
         }
-        
+
 
 
         public void Terminate()
         {
-            
-            if (!string.IsNullOrEmpty (tempPath) && File.Exists(tempPath))
+
+            if (!string.IsNullOrEmpty(tempPath) && File.Exists(tempPath))
             {
                 File.Delete(tempPath);
             }
         }
-        public void Terminate( string filePath)
+        public void Terminate(string filePath)
         {
-           
+
             if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
             {
                 File.Delete(filePath);
             }
         }
     }
-        
+
     public class VoxelDocument
     {
         public Vec3 Origin { get; set; }
         public double VoxelSize { get; set; }
         public List<VoxelElement> Elements { get; set; } = new List<VoxelElement>();
-       
+
         public VoxelDataManager Manager { get; set; }
         public void GenereateIndoorVoxelMaps(double strideHeight)
         {
-            
+
             //generate accessible region
 
         }
@@ -2599,14 +2587,14 @@ namespace RevitVoxelzation
         public bool IsActive { get; set; } = true;
 
         public double timeGridPtGen = 0;
-        public double timeVoxGen  = 0;
+        public double timeVoxGen = 0;
 
-        public double timeVoxMerge  = 0;
-        public double timeVoxFill  = 0;
+        public double timeVoxMerge = 0;
+        public double timeVoxFill = 0;
 
-       
+
         public VoxelElement() { }
-        public VoxelElement(VoxelDocument doc, MeshElement meshElement,bool fillVoxels,double minGapHeight)
+        public VoxelElement(VoxelDocument doc, MeshElement meshElement, bool fillVoxels, double minGapHeight)
         {
             List<Voxel> vox = new List<Voxel>();
             var solids = meshElement.Solids;
@@ -2615,8 +2603,8 @@ namespace RevitVoxelzation
             //vox.Capacity = gpNumberAll / 3;
             foreach (var sld in solids)
             {
-               vox.AddRange(sld.GenerateVoxelByRawData( origin,voxSize, fillVoxels, minGapHeight));
-               //vox.AddRange(sld.GenerateVoxelByRawDataAndRecordTime(origin, voxSize, fillVoxels, minGapHeight,ref timeGridPtGen,ref timeVoxGen,ref timeVoxMerge,ref timeVoxFill));
+                vox.AddRange(sld.GenerateVoxelByRawData(origin, voxSize, fillVoxels, minGapHeight));
+                //vox.AddRange(sld.GenerateVoxelByRawDataAndRecordTime(origin, voxSize, fillVoxels, minGapHeight,ref timeGridPtGen,ref timeVoxGen,ref timeVoxMerge,ref timeVoxFill));
             }
             vox.TrimExcess();
             this.IsActive = meshElement.IsActive;
@@ -2629,7 +2617,7 @@ namespace RevitVoxelzation
             this.IsTransportElement = meshElement.isTransport;
         }
 
-        public VoxelElement(VoxelDocument doc, MeshElement meshElement, bool fillVoxels, double minGapHeight,bool reportTime)
+        public VoxelElement(VoxelDocument doc, MeshElement meshElement, bool fillVoxels, double minGapHeight, bool reportTime)
         {
             List<Voxel> vox = new List<Voxel>();
             var solids = meshElement.Solids;
@@ -2639,7 +2627,7 @@ namespace RevitVoxelzation
             foreach (var sld in solids)
             {
                 //vox.AddRange(sld.GenerateVoxelByRawData(origin, voxSize, fillVoxels, minGapHeight));
-                vox.AddRange(sld.GenerateVoxelByRawDataAndRecordTime(origin, voxSize, fillVoxels, minGapHeight,ref timeGridPtGen,ref timeVoxGen,ref timeVoxMerge,ref timeVoxFill));
+                vox.AddRange(sld.GenerateVoxelByRawDataAndRecordTime(origin, voxSize, fillVoxels, minGapHeight, ref timeGridPtGen, ref timeVoxGen, ref timeVoxMerge, ref timeVoxFill));
             }
             vox.TrimExcess();
             this.IsActive = meshElement.IsActive;
@@ -2651,17 +2639,17 @@ namespace RevitVoxelzation
             this.Name = meshElement.Name;
             this.IsTransportElement = meshElement.isTransport;
         }
-        public static void GenerateGridPoint(VoxelDocument doc, MeshElement meshElement,out double timeElapsed)
+        public static void GenerateGridPoint(VoxelDocument doc, MeshElement meshElement, out double timeElapsed)
         {
             var solids = meshElement.Solids;
             var origin = doc.Origin;
             var voxSize = doc.VoxelSize;
-            Stopwatch sw=Stopwatch.StartNew();
+            Stopwatch sw = Stopwatch.StartNew();
             foreach (var sld in solids)
             {
                 foreach (var tri in sld.Triangles)
                 {
-                    foreach (var data in tri.ObtainGridPoints(origin,voxSize))
+                    foreach (var data in tri.ObtainGridPoints(origin, voxSize))
                     {
 
                     }
@@ -2670,7 +2658,7 @@ namespace RevitVoxelzation
             sw.Stop();
             timeElapsed = sw.Elapsed.TotalMilliseconds;
         }
-       
+
         /// <summary>
         /// Load voxels, the origin is at (0,0,0)
         /// </summary>
@@ -2682,7 +2670,7 @@ namespace RevitVoxelzation
 
     public class CompressedVoxelDocument
     {
-        public Dictionary<int,int> VoxelHight { get; set; }
+        public Dictionary<int, int> VoxelHight { get; set; }
         public List<CellIndex3D> VoxelScale { get; set; }
         public double VoxelSize { get; set; }
         public Vec3 Origin { get; set; }
@@ -2692,7 +2680,7 @@ namespace RevitVoxelzation
         {
 
         }
-        public CompressedVoxelDocument( ref Dictionary <CellIndex3D,int> scales, VoxelDocument voxDoc)
+        public CompressedVoxelDocument(ref Dictionary<CellIndex3D, int> scales, VoxelDocument voxDoc)
         {
             this.VoxelSize = voxDoc.VoxelSize;
             this.Origin = voxDoc.Origin;
@@ -2700,13 +2688,13 @@ namespace RevitVoxelzation
             this.Elements = new List<CompressedVoxelElement>();
             foreach (var ve in voxDoc.Elements)
             {
-                var rects= LEGOVoxelTool.CompressVoxels(ref scales, ve);
+                var rects = LEGOVoxelTool.CompressVoxels(ref scales, ve);
                 var compElem = new CompressedVoxelElement(ve, rects);
                 Elements.Add(compElem);
             }
             this.VoxelHight = voxHeigtMM_VoxelIndex;
         }
-        
+
     }
 
 
@@ -2725,19 +2713,19 @@ namespace RevitVoxelzation
         {
 
         }
-        public CompressedVoxelElement(VoxelElement elem,List<VoxelRectangle> rect)
+        public CompressedVoxelElement(VoxelElement elem, List<VoxelRectangle> rect)
         {
             ElementId = elem.ElementId;
             Name = elem.Name;
             Category = elem.Category;
             IsActive = elem.IsActive;
             IsSupportElement = elem.IsSupportElement;
-            IsTransportElement=elem.IsTransportElement;
+            IsTransportElement = elem.IsTransportElement;
             IsObstructElement = elem.IsObstructElement;
             VoxelRectangles = rect;
         }
 
-        public VoxelElement ToVoxelElement(CompressedVoxelDocument doc,double unitConvertRatio)
+        public VoxelElement ToVoxelElement(CompressedVoxelDocument doc, double unitConvertRatio)
         {
             VoxelElement ve = new VoxelElement();
             ve.IsSupportElement = IsSupportElement;
@@ -2749,12 +2737,12 @@ namespace RevitVoxelzation
             ve.Voxels = new List<Voxel>();
             foreach (var rect in this.VoxelRectangles)
             {
-                ve.Voxels.AddRange ( rect.ToVoxels(doc,unitConvertRatio));
+                ve.Voxels.AddRange(rect.ToVoxels(doc, unitConvertRatio));
             }
             return ve;
         }
 
-        internal void Get_BoundingBox(CompressedVoxelDocument vdoc,  out CellIndex min, out CellIndex max, out double bottomElev, out double topElev)
+        internal void Get_BoundingBox(CompressedVoxelDocument vdoc, out CellIndex min, out CellIndex max, out double bottomElev, out double topElev)
         {
             int colMax = int.MinValue;
             int rowMax = int.MinValue;
@@ -2764,10 +2752,10 @@ namespace RevitVoxelzation
             int zMax = int.MinValue;
             foreach (var rect in this.VoxelRectangles)
             {
-               var cix3D= rect.Get_Scale(vdoc.VoxelScale);
-                var colMaxTemp =rect.Start.Col+ cix3D.Col;
-                var rowMaxTemp =rect.Start .Row + cix3D.Row;
-                var zMaxTemp =rect.BottomElevation+ cix3D.Layer;
+                var cix3D = rect.Get_Scale(vdoc.VoxelScale);
+                var colMaxTemp = rect.Start.Col + cix3D.Col;
+                var rowMaxTemp = rect.Start.Row + cix3D.Row;
+                var zMaxTemp = rect.BottomElevation + cix3D.Layer;
 
                 var colMinTemp = rect.Start.Col;
                 var rowMinTemp = rect.Start.Row;
@@ -2792,14 +2780,14 @@ namespace RevitVoxelzation
         public int ColIndex { get; set; }
         public int RowIndex { get; set; }
         public double BottomElevation { get; set; }
-        public double TopElevation { get; set; } 
+        public double TopElevation { get; set; }
         public Voxel TopVoxel { get; set; }
         public Voxel BottomVoxel { get; set; }
         public Voxel[] BottomAdjVoxels { get; set; }
         public Voxel[] TopAdjVoxels { get; set; }
         // This property is valid for odd voxels
         public VoxelType VoxType { get; set; } = VoxelType.Common;
-        public List<Voxel> LinkedSupportVoxels { get; set; }=new List<Voxel>();
+        public List<Voxel> LinkedSupportVoxels { get; set; } = new List<Voxel>();
         public List<Voxel> LinkedTransportVoxels { get; set; } = new List<Voxel>();
         public Voxel Parent { get; set; }
         public bool IsBoundaryVoxel { get; set; } = false;
@@ -2808,7 +2796,7 @@ namespace RevitVoxelzation
         public bool Navigable { get; set; } = true;
 
 
-        
+
         //this property is used for debug
         //remove after release
         public int Index { get; set; }
@@ -2816,7 +2804,7 @@ namespace RevitVoxelzation
         public int BottomActivater { get; set; } = -1;
         public int TopActivater { get; set; } = -1;
         public int BoundaryActivater { get; set; } = -1;
-        public Voxel(MeshElement host, int col, int row, double btmElev,double topElev)
+        public Voxel(MeshElement host, int col, int row, double btmElev, double topElev)
         {
             Host = host;
             ColIndex = col;
@@ -2825,7 +2813,7 @@ namespace RevitVoxelzation
             TopElevation = topElev;
             BottomVoxel = null;
             TopVoxel = null;
-            BottomAdjVoxels=new Voxel[4];
+            BottomAdjVoxels = new Voxel[4];
             TopAdjVoxels = new Voxel[4];
             Parent = this;
         }
@@ -2846,12 +2834,12 @@ namespace RevitVoxelzation
             //obtain vox Bottom Gap
             double dblBottomGapSt = double.MinValue;
             double dblBottomGapEd = this.BottomElevation;
-            if(BottomVoxel!=null)
+            if (BottomVoxel != null)
             {
                 dblBottomGapSt = BottomVoxel.TopElevation;
             }
             return new VoxelRange(dblBottomGapSt, dblBottomGapEd);
-            
+
         }
         /// <summary>
         /// Get lower gap consider minimum passing height
@@ -2861,7 +2849,7 @@ namespace RevitVoxelzation
         {
             //obtain vox Bottom Gap
             double dblBottomGapSt = double.MinValue;
-            double dblBottomGapEd = this.BottomElevation-minPassingHeight/2;
+            double dblBottomGapEd = this.BottomElevation - minPassingHeight / 2;
             if (BottomVoxel != null)
             {
                 dblBottomGapSt = BottomVoxel.TopElevation;
@@ -2892,7 +2880,7 @@ namespace RevitVoxelzation
         public VoxelRange GetUpperGapRange(double minPassingHeight)
         {
             //obtan vox TopGap
-            double dblTopGapSt = TopElevation+minPassingHeight/2;
+            double dblTopGapSt = TopElevation + minPassingHeight / 2;
             double dblTopGapEd = double.MaxValue;
             if (TopVoxel != null)
             {
@@ -2902,11 +2890,11 @@ namespace RevitVoxelzation
         }
         //Used for comparing F
 
-       
+
     }
 
-    
-   
+
+
     public class VoxelRectangle
     {
         /// <summary>
@@ -2922,17 +2910,17 @@ namespace RevitVoxelzation
         /// first: col scale; second:Rogetw scale，third：height
         /// </summary>
         public int ScaleIndex { get; set; }
-        public CellIndex3D  Get_Scale(List<CellIndex3D> scaleList)
+        public CellIndex3D Get_Scale(List<CellIndex3D> scaleList)
         {
             return scaleList[this.ScaleIndex];
         }
         public VoxelRectangle()
         {
-           
-            this.Start = new CellIndex(0,0);
-            
+
+            this.Start = new CellIndex(0, 0);
+
         }
-       
+
         /// <summary>
         /// Construct a rectangle
         /// </summary>
@@ -2940,7 +2928,7 @@ namespace RevitVoxelzation
         /// <param name="bottomElev_MM">rectange bottom elevation</param>
         /// <param name="start">start voxel index</param>
         /// <param name="scale">scale,col-row-heightIndex</param>
-        public VoxelRectangle (int scaleIndex,int bottomElev_MM,CellIndex start,CellIndex scale)
+        public VoxelRectangle(int scaleIndex, int bottomElev_MM, CellIndex start, CellIndex scale)
         {
             this.BottomElevation = bottomElev_MM;
             this.Start = start;
@@ -2949,12 +2937,12 @@ namespace RevitVoxelzation
 
         public IEnumerable<CellIndex> Get_CellIndexes(CellIndex3D scale)
         {
-            
+
             int colScale = scale.Col;
-            int rowScale=scale.Row; 
-            for(int col=0;col<=colScale;col++)
+            int rowScale = scale.Row;
+            for (int col = 0; col <= colScale; col++)
             {
-                for(int row=0;row<=rowScale; row++)
+                for (int row = 0; row <= rowScale; row++)
                 {
                     yield return (Start + new CellIndex(col, row));
                 }
@@ -2975,8 +2963,8 @@ namespace RevitVoxelzation
             double dblActualTopElev = this.BottomElevation * unitConversionRatio + dblActualHeight;
             foreach (var cix in this.Get_CellIndexes(scale))
             {
-                Voxel voxNew = new Voxel() { BottomElevation = dblActualBottomElev, TopElevation = dblActualTopElev, ColIndex=cix.Col,RowIndex=cix.Row };
-                yield return voxNew;  
+                Voxel voxNew = new Voxel() { BottomElevation = dblActualBottomElev, TopElevation = dblActualTopElev, ColIndex = cix.Col, RowIndex = cix.Row };
+                yield return voxNew;
             }
         }
 
@@ -3011,11 +2999,11 @@ namespace RevitVoxelzation
     }
     public enum VoxelType
     {
-        Common=0,
-        Odd=1,
+        Common = 0,
+        Odd = 1,
 
     }
-    
+
     /// <summary>
     /// Voxel Range representing the void space between 2 verticl adjacent voxels
     /// </summary>
@@ -3027,16 +3015,16 @@ namespace RevitVoxelzation
         {
             return EndElevation - StartElevation;
         }
-        public VoxelRange(double startElev,double endElev)
+        public VoxelRange(double startElev, double endElev)
         {
             StartElevation = startElev;
             EndElevation = endElev;
         }
-        public bool Intersect(VoxelRange other,out VoxelRange intersectionResult)
+        public bool Intersect(VoxelRange other, out VoxelRange intersectionResult)
         {
             var endElev = Math.Min(this.EndElevation, other.EndElevation);
             var startElev = Math.Max(this.StartElevation, other.StartElevation);
-            if(Math.Round (endElev -startElev,4)>0)
+            if (Math.Round(endElev - startElev, 4) > 0)
             {
                 intersectionResult = new VoxelRange(startElev, endElev);
                 return true;
@@ -3046,7 +3034,7 @@ namespace RevitVoxelzation
                 intersectionResult = null;
                 return false;
             }
-            
+
         }
         public bool Intersect(VoxelRange other)
         {
@@ -3056,15 +3044,15 @@ namespace RevitVoxelzation
             var edOther = other.EndElevation;
             var dis0 = edThis - stOther;
             var dis1 = edOther - stThis;
-            if(Math.Round (dis0,4)>0 && Math.Round (dis1,4)>0)
+            if (Math.Round(dis0, 4) > 0 && Math.Round(dis1, 4) > 0)
             {
                 return true;
             }
             else
             {
                 return false;
-            } 
-                
+            }
+
         }
     }
     public class VoxelRangeData
@@ -3083,7 +3071,7 @@ namespace RevitVoxelzation
         {
 
         }
-        public VoxelRangeData(double startElev,double endElev)
+        public VoxelRangeData(double startElev, double endElev)
         {
             StartElevation = startElev;
             EndElevation = endElev;
@@ -3136,31 +3124,31 @@ namespace RevitVoxelzation
         public Vec2 XY { get; set; }
 
         public GridPointType GridType { get; set; }
-        public GridPoint(double x,double y,int column, int row, double z, GridPointType gridType)
+        public GridPoint(double x, double y, int column, int row, double z, GridPointType gridType)
         {
             Column = column;
             Row = row;
             Z = z;
             GridType = gridType;
-            this.XY =new Vec2(x,y);
+            this.XY = new Vec2(x, y);
         }
-        public GridPoint(Vec3 pt,Vec3 origin,double voxSize)
+        public GridPoint(Vec3 pt, Vec3 origin, double voxSize)
         {
             this.XY = new Vec2(pt.X, pt.Y);
             var dblCol = Math.Round((pt.X - origin.X) / voxSize, 4);
             var dblRow = Math.Round((pt.Y - origin.Y) / voxSize, 4);
-            this.Column =(int) Math.Floor(dblCol);
+            this.Column = (int)Math.Floor(dblCol);
             this.Row = (int)Math.Floor(dblRow);
             this.Z = pt.Z;
-            if(dblCol !=this.Column && dblRow !=this.Row)
+            if (dblCol != this.Column && dblRow != this.Row)
             {
                 this.GridType = GridPointType.VGP;
             }
-            else if(dblCol ==this.Column && dblRow !=this.Row)
+            else if (dblCol == this.Column && dblRow != this.Row)
             {
                 this.GridType = GridPointType.CGP;
             }
-            else if(dblCol !=this.Column && dblRow ==this.Row)
+            else if (dblCol != this.Column && dblRow == this.Row)
             {
                 this.GridType = GridPointType.RGP;
             }
@@ -3169,12 +3157,12 @@ namespace RevitVoxelzation
                 this.GridType = GridPointType.IGP;
             }
         }
-        
-        
 
-        public Vec3 GetCoordinates(Vec3 origin,double voxelSize)
+
+
+        public Vec3 GetCoordinates(Vec3 origin, double voxelSize)
         {
-            if(this.XY !=null)
+            if (this.XY != null)
             {
                 return new Vec3(this.XY.U, this.XY.V, this.Z);
             }
@@ -3183,19 +3171,19 @@ namespace RevitVoxelzation
                 var x = origin.X + this.Column * voxelSize;
                 var y = origin.Y + this.Row * voxelSize;
                 var z = this.Z;
-                return new Vec3(x, y, z); 
+                return new Vec3(x, y, z);
             }
         }
     }
 
-   
+
 
     public enum GridPointType
     {
-        VGP=0,
-        CGP=1,
-        RGP=2,
-        IGP=3,
+        VGP = 0,
+        CGP = 1,
+        RGP = 2,
+        IGP = 3,
     }
 
     public class VoxelDataManager
@@ -3205,16 +3193,16 @@ namespace RevitVoxelzation
         public Dictionary<Vec3, int> VerticesIndex { get; set; } = new Dictionary<Vec3, int>();
         public Dictionary<CellIndex3D, int> TriIndex { get; set; } = new Dictionary<CellIndex3D, int>();
         public Dictionary<OffsetH, int> HorizontalOffset { get; set; } = new Dictionary<OffsetH, int>();
-        public Dictionary<string,TriangleVoxelTemplate> TriangleVoxelTemplates { get; set; }= new Dictionary<string,TriangleVoxelTemplate>();
-        public VoxelDataManager(Vec3 origin,double voxelSize)
+        public Dictionary<string, TriangleVoxelTemplate> TriangleVoxelTemplates { get; set; } = new Dictionary<string, TriangleVoxelTemplate>();
+        public VoxelDataManager(Vec3 origin, double voxelSize)
         {
             this.Origin = origin;
             this.VoxelSize = voxelSize;
         }
-        
-        public bool TryGetAndUpdateTemplate(MeshTriangle tri,out TriangleVoxelTemplate template ,out string templateId)
+
+        public bool TryGetAndUpdateTemplate(MeshTriangle tri, out TriangleVoxelTemplate template, out string templateId)
         {
-            Vec3[] ptLoc=new Vec3[3];
+            Vec3[] ptLoc = new Vec3[3];
             var voxInv = 1 / VoxelSize;
             //get tri box
             double zMin = double.MaxValue;
@@ -3225,14 +3213,14 @@ namespace RevitVoxelzation
                 var pt = tri.Get_Vertex(i);
                 ptLoc[i] = pt;
                 xMin = Math.Min(pt.X, xMin);
-                yMin =Math.Min(pt.Y ,yMin);
+                yMin = Math.Min(pt.Y, yMin);
                 zMin = Math.Min(pt.Z, zMin);
             }
             Vec3 offset = new Vec3(xMin, yMin, zMin);
             //convert to local
-            for(int i=0;i<=2;i++)
+            for (int i = 0; i <= 2; i++)
             {
-                ptLoc[i]-=offset;
+                ptLoc[i] -= offset;
             }
             var pt0 = ptLoc[0];
             var pt1 = ptLoc[1];
@@ -3241,26 +3229,26 @@ namespace RevitVoxelzation
             double dblColOff = Math.Round((xMin - Origin.X) * voxInv, 4);
             double dblRowOff = Math.Round((yMin - Origin.Y) * voxInv, 4);
             OffsetH ofh = new OffsetH(dblColOff, dblRowOff);
-            if (VerticesIndex.ContainsKey(pt0) && VerticesIndex.ContainsKey (pt1) && VerticesIndex.ContainsKey(pt2))
+            if (VerticesIndex.ContainsKey(pt0) && VerticesIndex.ContainsKey(pt1) && VerticesIndex.ContainsKey(pt2))
             {
                 int pi0Loc = VerticesIndex[pt0];
-                int pi1Loc=VerticesIndex[pt1];
+                int pi1Loc = VerticesIndex[pt1];
                 int pi2Loc = VerticesIndex[pt2];
-                int[] intPis= new int[] {pi0Loc ,pi1Loc,pi2Loc};
+                int[] intPis = new int[] { pi0Loc, pi1Loc, pi2Loc };
                 Array.Sort(intPis);
                 var triCode = new CellIndex3D(intPis[0], intPis[1], intPis[2]);
-                if (TriIndex .ContainsKey(triCode))
+                if (TriIndex.ContainsKey(triCode))
                 {
-                    var triIdx=TriIndex [triCode];
-                    if(HorizontalOffset.ContainsKey (ofh))
+                    var triIdx = TriIndex[triCode];
+                    if (HorizontalOffset.ContainsKey(ofh))
                     {
-                        int offIdx=HorizontalOffset [ofh];
-                        string striTri_OffIdx=string.Join(",", triIdx, offIdx);
-                        if(TriangleVoxelTemplates.ContainsKey (striTri_OffIdx))
+                        int offIdx = HorizontalOffset[ofh];
+                        string striTri_OffIdx = string.Join(",", triIdx, offIdx);
+                        if (TriangleVoxelTemplates.ContainsKey(striTri_OffIdx))
                         {
                             template = TriangleVoxelTemplates[striTri_OffIdx];
                             templateId = striTri_OffIdx;
-                            return true;  
+                            return true;
                         }
                         else
                         {
@@ -3271,16 +3259,16 @@ namespace RevitVoxelzation
                     }
                     else
                     {
-                        int offIdx= UpdateOffset(ofh);
-                        templateId= string.Join(",",triIdx, offIdx);
+                        int offIdx = UpdateOffset(ofh);
+                        templateId = string.Join(",", triIdx, offIdx);
                         template = null;
                         return false;
                     }
                 }
                 else
                 {
-                    int triIdx= UpdateTriangle(intPis);
-                    int offIdx= UpdateOffset(ofh);
+                    int triIdx = UpdateTriangle(intPis);
+                    int offIdx = UpdateOffset(ofh);
                     templateId = string.Join(",", triIdx, offIdx);
                     template = null;
                     return false;
@@ -3288,16 +3276,16 @@ namespace RevitVoxelzation
             }
             else
             {
-                var newIndex= UpdateTriVerices(ptLoc);
-                int triIdx=  UpdateTriangle(newIndex);
-                int offIdx= UpdateOffset(ofh);
+                var newIndex = UpdateTriVerices(ptLoc);
+                int triIdx = UpdateTriangle(newIndex);
+                int offIdx = UpdateOffset(ofh);
                 templateId = string.Join(",", triIdx, offIdx);
                 template = null;
                 return false;
             }
         }
-        
-        public void UpdateTemplate(string tempId,TriangleVoxelTemplate template)
+
+        public void UpdateTemplate(string tempId, TriangleVoxelTemplate template)
         {
             this.TriangleVoxelTemplates[tempId] = template;
         }
@@ -3305,9 +3293,9 @@ namespace RevitVoxelzation
         {
             int[] triIndex = new int[3];
             //update vertices
-            for(int i=0;i<=2;i++)
+            for (int i = 0; i <= 2; i++)
             {
-                var pt=triVerticesLocal[i];
+                var pt = triVerticesLocal[i];
                 if (!VerticesIndex.ContainsKey(pt))
                 {
                     triIndex[i] = this.VerticesIndex.Count;
@@ -3320,7 +3308,7 @@ namespace RevitVoxelzation
             }
             //update triangle List
             Array.Sort(triIndex);
-            
+
             return triIndex;
         }
 
@@ -3338,11 +3326,11 @@ namespace RevitVoxelzation
             }
             return result;
         }
-        
+
         private int UpdateOffset(OffsetH offData)
         {
             int result = 0;
-            if(!this.HorizontalOffset.ContainsKey (offData))
+            if (!this.HorizontalOffset.ContainsKey(offData))
             {
                 result = this.HorizontalOffset.Count;
                 this.HorizontalOffset.Add(offData, this.HorizontalOffset.Count);
@@ -3354,7 +3342,7 @@ namespace RevitVoxelzation
             return result;
         }
     }
-    public class OffsetH:IEquatable<OffsetH> 
+    public class OffsetH : IEquatable<OffsetH>
     {
         public OffsetH(double dblColOff, double dblRowOff)
         {
@@ -3462,12 +3450,12 @@ namespace RevitVoxelzation
             }
             return result;
         }
-        public static bool PathPlanning(Vec3 start,Vec3 target,AccessibeDocument doc,out List<Vec3> path )
+        public static bool PathPlanning(Vec3 start, Vec3 target, AccessibeDocument doc, out List<Vec3> path)
         {
             path = new List<Vec3>();
             var startPt = FindAccessibleRectBelow(start, doc, out var rectStart);
             var endPt = FindAccessibleRectBelow(target, doc, out var rectEnd);
-            if(rectStart.Owner == rectEnd.Owner)
+            if (rectStart.Owner == rectEnd.Owner)
             {
                 if (!doc.GateGenerated)
                 {
@@ -3549,7 +3537,7 @@ namespace RevitVoxelzation
             {
                 return false;
             }
-           
+
         }
         private static AccessibleGate GetMin(ref List<AccessibleGate> gateOpen)
         {
@@ -3559,7 +3547,7 @@ namespace RevitVoxelzation
             int pt = 0;
             foreach (var item in gateOpen)
             {
-                if(item.F<dblF)
+                if (item.F < dblF)
                 {
                     dblF = item.F;
                     result = item;
@@ -3567,16 +3555,16 @@ namespace RevitVoxelzation
                 }
                 pt += 1;
             }
-            if(resultIndex!=gateOpen.Count-1) //pt is not the last, move it to gateOpen[pt] and then remove it
+            if (resultIndex != gateOpen.Count - 1) //pt is not the last, move it to gateOpen[pt] and then remove it
             {
-                var gateLast = gateOpen[gateOpen.Count -1];
+                var gateLast = gateOpen[gateOpen.Count - 1];
                 gateOpen[resultIndex] = gateLast;
             }
             gateOpen.RemoveAt(gateOpen.Count - 1);
 
             return result;
         }
-        private static Vec3 FindAccessibleRectBelow(Vec3 pt, AccessibeDocument doc,out AccessibleRectangle rect)
+        private static Vec3 FindAccessibleRectBelow(Vec3 pt, AccessibeDocument doc, out AccessibleRectangle rect)
         {
             Vec3 result = null;
             double dblElev = double.MinValue;
@@ -3586,12 +3574,12 @@ namespace RevitVoxelzation
                 foreach (var r in rng.Rectangles)
                 {
                     double xMin = r.Min.Col * doc.VoxelSize + doc.Origin.X;
-                    double yMin=r.Min.Row *doc.VoxelSize + doc.Origin.Y;
+                    double yMin = r.Min.Row * doc.VoxelSize + doc.Origin.Y;
                     double xMax = (r.Max.Col + 1) * doc.VoxelSize + doc.Origin.X;
-                    double yMax=(r.Max.Row +1) * doc.VoxelSize + doc.Origin.Y;
-                    if(pt.Z >=r.Elevation && pt.X >=xMin && pt.X <=xMax && pt.Y >=yMin && pt.Y <=yMax)
+                    double yMax = (r.Max.Row + 1) * doc.VoxelSize + doc.Origin.Y;
+                    if (pt.Z >= r.Elevation && pt.X >= xMin && pt.X <= xMax && pt.Y >= yMin && pt.Y <= yMax)
                     {
-                        if(r.Elevation >dblElev)
+                        if (r.Elevation > dblElev)
                         {
                             dblElev = r.Elevation;
                             result = new Vec3(pt.X, pt.Y, dblElev);
@@ -3621,11 +3609,11 @@ namespace RevitVoxelzation
                     CellIndex cixScale = rect.Max - rect.Min + new CellIndex(1, 1);
                     double width = cixScale.Col * this.VoxelSize;
                     double height = cixScale.Row * this.VoxelSize;
-                    double area=width* height;
+                    double area = width * height;
                     dblAreaSquareFeet += area;
                 }
             }
-            switch(unit)
+            switch (unit)
             {
                 case AreaUnit.SquareMeter:
                     return dblAreaSquareFeet * Math.Pow(0.3048, 2);
@@ -3636,8 +3624,8 @@ namespace RevitVoxelzation
         }
         public enum AreaUnit
         {
-            SqureFeet=0,
-            SquareMeter=1,
+            SqureFeet = 0,
+            SquareMeter = 1,
         }
         public AccessibeDocument()
         {
@@ -3691,7 +3679,7 @@ namespace RevitVoxelzation
         public Voxel[,] Voxels { get; set; }
         public int Index { get; set; }
         public Vec3 LocationPoint { get; set; }
-        
+
         //way pt of path planning
         public double G { get; set; }
         public double H { get; set; }
@@ -3708,17 +3696,17 @@ namespace RevitVoxelzation
         public List<AccessibleGate> Gates { get; set; } = new List<AccessibleGate>();
         public List<AccessibleCell> GenerateCells()
         {
-            var min=this.Min;
+            var min = this.Min;
             var max = this.Max;
             List<AccessibleCell> cells = new List<AccessibleCell>();
-            for(int col=min.Col;col<=max.Col;col++)
+            for (int col = min.Col; col <= max.Col; col++)
             {
                 AccessibleCell cellLeft = null;
-                for(int row=min.Row;row<=max.Row;row++ )
+                for (int row = min.Row; row <= max.Row; row++)
                 {
-                    var cell=new AccessibleCell() { Index=new CellIndex (col,row),Owner =this};
+                    var cell = new AccessibleCell() { Index = new CellIndex(col, row), Owner = this };
                     cell.Neighbours = new AccessibleCell[8];
-                    if(cellLeft!=null)
+                    if (cellLeft != null)
                     {
 
                     }
@@ -3730,15 +3718,15 @@ namespace RevitVoxelzation
         public void GenerateGates(Vec3 origin, double voxelSize)
         {
             CellIndex min = this.Min;
-            CellIndex max = this.Max+new CellIndex (1,1);
+            CellIndex max = this.Max + new CellIndex(1, 1);
             foreach (var rectNear in this.AdjacentRectangles)
             {
-                if(rectNear.Gates.Count !=rectNear.AdjacentRectangles.Count)
+                if (rectNear.Gates.Count != rectNear.AdjacentRectangles.Count)
                 {
                     var minNear = rectNear.Min;
                     var maxNear = rectNear.Max + new CellIndex(1, 1);
                     int colGateSt = Math.Max(minNear.Col, min.Col);
-                    int  colGateEd = Math.Min(max.Col, maxNear.Col);
+                    int colGateEd = Math.Min(max.Col, maxNear.Col);
                     int rowGateSt = Math.Max(min.Row, minNear.Row);
                     int rowGateEd = Math.Min(max.Row, maxNear.Row);
                     double elevation = this.Elevation;
@@ -3776,11 +3764,11 @@ namespace RevitVoxelzation
         public static List<AccessibleRegion> GenerateAccessibleRegions(List<AccessibleRectangle> rects)
         {
             List<AccessibleRegion> regions = new List<AccessibleRegion>();
-          
+
             int accessibleRngIdx = 0;
             foreach (var rect in rects)
             {
-                if (rect.Owner !=null)
+                if (rect.Owner != null)
                 {
                     continue;
                 }
@@ -3800,7 +3788,7 @@ namespace RevitVoxelzation
                         {
                             rAdj.Owner = region;
                             stkRects.Push(rAdj);
-                            
+
                         }
                     }
 
@@ -4066,7 +4054,7 @@ namespace RevitVoxelzation
             return null;
             foreach (var rect in this.Rectangles)
             {
-                 
+
             }
         }
         private static List<Voxel> MergeIntersectingVoxels(List<Voxel> voxWithSameIndex)
@@ -4086,14 +4074,14 @@ namespace RevitVoxelzation
                     Math.Round(snakeVoxel.TopElevation - foodVoxel.BottomElevation, 4) >= 0)
                 {
                     snakeVoxel.TopElevation = Math.Max(snakeVoxel.TopElevation, foodVoxel.TopElevation);
-                    
+
                     foodPointer += 1;
                 }
                 else //snake voxel and food voxel do not intersect
                 {
                     snakePointer = foodPointer;
                     snakeVoxel = sortedVoxels[snakePointer];
-                    
+
                     mergedVoxels.Add(snakeVoxel);
                     foodPointer += 1;
                 }
@@ -4108,24 +4096,24 @@ namespace RevitVoxelzation
             }
             return mergedVoxels;
         }
-       
-        
-
-       
-        
 
 
-       
 
-       
-        
+
+
+
+
+
+
+
+
     }
     public class AccessibleCell
     {
         public AccessibleRectangle Owner { get; set; }
         public CellIndex Index { get; set; }
         public AccessibleCell[] Neighbours { get; set; }
-        public double G { get; set; }=double.MaxValue;
+        public double G { get; set; } = double.MaxValue;
         public double H { get; set; } = double.MaxValue;
         public double F { get; set; } = double.MaxValue;
         public AccessibleCell Previous { get; set; }
@@ -4134,7 +4122,7 @@ namespace RevitVoxelzation
         {
             return Owner.Elevation;
         }
-        
+
     }
 
     public class AccessibleGate : IAStarObject
@@ -4151,7 +4139,7 @@ namespace RevitVoxelzation
         public bool IsClose { get; set; } = false;
         public AccessibleRectangle RectanglesFrom { get; set; }
 
-        public AccessibleGate GateTo{ get; set; }
+        public AccessibleGate GateTo { get; set; }
         public AccessibleGate Previous { get; internal set; }
         public double DistanceTo(AccessibleGate other)
         {
@@ -4345,8 +4333,8 @@ namespace RevitVoxelzation
     #region Model Converter
     public class MeshDocumentConverter
     {
-       
-        
+
+
     }
     //save voxel as obj formats
     public class VoxelObjConverter
@@ -4358,33 +4346,33 @@ namespace RevitVoxelzation
     #region voxel tool
     public static class LEGOVoxelTool
     {
-        
-        public static CompressedVoxelDocument CompressVoxelDocuments (ref Dictionary<CellIndex3D,int> scales, VoxelDocument voxDoc)
+
+        public static CompressedVoxelDocument CompressVoxelDocuments(ref Dictionary<CellIndex3D, int> scales, VoxelDocument voxDoc)
         {
-            CompressedVoxelDocument cvd = new CompressedVoxelDocument(); 
-            cvd. VoxelSize = voxDoc.VoxelSize;
-            cvd.  Origin = voxDoc.Origin;
+            CompressedVoxelDocument cvd = new CompressedVoxelDocument();
+            cvd.VoxelSize = voxDoc.VoxelSize;
+            cvd.Origin = voxDoc.Origin;
             Dictionary<int, int> voxHeigtMM_VoxelIndex = new Dictionary<int, int>();
             cvd.Elements = new List<CompressedVoxelElement>();
             foreach (var ve in voxDoc.Elements)
             {
                 var rects = CompressVoxels(ref scales, ve);
                 var compElem = new CompressedVoxelElement(ve, rects);
-                cvd. Elements.Add(compElem);
+                cvd.Elements.Add(compElem);
             }
             cvd.VoxelHight = voxHeigtMM_VoxelIndex;
             return cvd;
         }
-        public static List<VoxelRectangle> CompressVoxels(ref Dictionary<CellIndex3D,int> scales, VoxelElement ve)
+        public static List<VoxelRectangle> CompressVoxels(ref Dictionary<CellIndex3D, int> scales, VoxelElement ve)
         {
             Dictionary<int, Dictionary<CellIndex, int>> dicBtmElev_Cix_Height = new Dictionary<int, Dictionary<CellIndex, int>>();
             //get or update voxelHeightIndex
-            
+
             foreach (var vox in ve.Voxels)
             {
-                int dblHeight_MM = (int)Math.Round((vox.TopElevation - vox.BottomElevation)*304.8);
+                int dblHeight_MM = (int)Math.Round((vox.TopElevation - vox.BottomElevation) * 304.8);
                 //update dicBtmElev_Cix_HeightIdx
-                var vbtm_MM =(int) Math.Round (vox.BottomElevation*304.8);
+                var vbtm_MM = (int)Math.Round(vox.BottomElevation * 304.8);
                 var voxCellIdx = new CellIndex(vox.ColIndex, vox.RowIndex);
                 if (!dicBtmElev_Cix_Height.ContainsKey(vbtm_MM))
                 {
@@ -4393,9 +4381,9 @@ namespace RevitVoxelzation
                         { voxCellIdx,dblHeight_MM  }
                     });
                 }
-                else if (!dicBtmElev_Cix_Height[vbtm_MM].ContainsKey (voxCellIdx))
+                else if (!dicBtmElev_Cix_Height[vbtm_MM].ContainsKey(voxCellIdx))
                 {
-                    dicBtmElev_Cix_Height[vbtm_MM].Add (voxCellIdx, dblHeight_MM);
+                    dicBtmElev_Cix_Height[vbtm_MM].Add(voxCellIdx, dblHeight_MM);
                 }
             }
             //Generate voxelRactangle
@@ -4405,12 +4393,12 @@ namespace RevitVoxelzation
                 var btmElev_MM = btmElev_cix_Height.Key;
                 var cix_Height_MM = btmElev_cix_Height.Value;
                 HashSet<CellIndex> cixChecked = new HashSet<CellIndex>();
-                
+
                 foreach (var cix in cix_Height_MM.Keys)
                 {
-                    if(!cixChecked.Contains (cix))
+                    if (!cixChecked.Contains(cix))
                     {
-                        var vr = GenerateRectangleAndMarkVoxels(cix_Height_MM,cixChecked, ref scales, btmElev_MM, cix, voxelRectangle.Count, out var scale);
+                        var vr = GenerateRectangleAndMarkVoxels(cix_Height_MM, cixChecked, ref scales, btmElev_MM, cix, voxelRectangle.Count, out var scale);
                         voxelRectangle.Add(vr);
                         //update cixChecked
                         foreach (var vix in vr.Get_CellIndexes(scale))
@@ -4423,7 +4411,7 @@ namespace RevitVoxelzation
             return voxelRectangle;
         }
 
-        private static VoxelRectangle GenerateRectangleAndMarkVoxels(Dictionary<CellIndex, int> voxelOriginal, HashSet<CellIndex> cixChecked,ref Dictionary<CellIndex3D,int> scales, double bottomElev, CellIndex voxStart, int rectIndex, out CellIndex3D scale)
+        private static VoxelRectangle GenerateRectangleAndMarkVoxels(Dictionary<CellIndex, int> voxelOriginal, HashSet<CellIndex> cixChecked, ref Dictionary<CellIndex3D, int> scales, double bottomElev, CellIndex voxStart, int rectIndex, out CellIndex3D scale)
         {
             var voxMax = voxStart;
             var voxMin = voxStart;
@@ -4438,25 +4426,25 @@ namespace RevitVoxelzation
                 List<CellIndex> voxS = null;
                 List<CellIndex> voxW = null;
                 List<CellIndex> voxN = null;
-                CellIndex voxNE=default ;
-                CellIndex voxSW=default;
-                CellIndex voxSE =default;
-                CellIndex voxNW = default ;
+                CellIndex voxNE = default;
+                CellIndex voxSW = default;
+                CellIndex voxSE = default;
+                CellIndex voxNW = default;
                 if (!maxFound) //voxMax has not been found yet
                 {
-                    voxNE = GetDirectionVoxel(voxelOriginal,cixChecked, voxelIndex, voxMax, voxMin, voxMaxLeft, voxMinRight, "NE");
-                    voxN = GetDirectionVoxels(voxelOriginal,cixChecked, voxelIndex, voxMax, voxMin, "N");
-                    voxE = GetDirectionVoxels(voxelOriginal,cixChecked, voxelIndex, voxMax, voxMin, "E");
+                    voxNE = GetDirectionVoxel(voxelOriginal, cixChecked, voxelIndex, voxMax, voxMin, voxMaxLeft, voxMinRight, "NE");
+                    voxN = GetDirectionVoxels(voxelOriginal, cixChecked, voxelIndex, voxMax, voxMin, "N");
+                    voxE = GetDirectionVoxels(voxelOriginal, cixChecked, voxelIndex, voxMax, voxMin, "E");
                 }
                 if (!minFound) //voxMin has not been found yet
                 {
-                    voxSW = GetDirectionVoxel(voxelOriginal,cixChecked, voxelIndex, voxMax, voxMin, voxMaxLeft, voxMinRight, "SW");
-                    voxSE = GetDirectionVoxel(voxelOriginal,cixChecked, voxelIndex, voxMax, voxMin, voxMaxLeft, voxMinRight, "SE");
-                    voxS = GetDirectionVoxels(voxelOriginal,cixChecked, voxelIndex, voxMax, voxMin, "S");
-                    voxNW = GetDirectionVoxel(voxelOriginal,cixChecked, voxelIndex, voxMax, voxMin, voxMaxLeft, voxMinRight, "NW");
-                    voxW = GetDirectionVoxels(voxelOriginal,cixChecked, voxelIndex, voxMax, voxMin, "W");
+                    voxSW = GetDirectionVoxel(voxelOriginal, cixChecked, voxelIndex, voxMax, voxMin, voxMaxLeft, voxMinRight, "SW");
+                    voxSE = GetDirectionVoxel(voxelOriginal, cixChecked, voxelIndex, voxMax, voxMin, voxMaxLeft, voxMinRight, "SE");
+                    voxS = GetDirectionVoxels(voxelOriginal, cixChecked, voxelIndex, voxMax, voxMin, "S");
+                    voxNW = GetDirectionVoxel(voxelOriginal, cixChecked, voxelIndex, voxMax, voxMin, voxMaxLeft, voxMinRight, "NW");
+                    voxW = GetDirectionVoxels(voxelOriginal, cixChecked, voxelIndex, voxMax, voxMin, "W");
                 }
-                
+
                 //mark found voxels
                 if (voxE != null && voxNE != default && voxN != null) //max=max.NE
                 {
@@ -4499,7 +4487,7 @@ namespace RevitVoxelzation
                 else if (voxN != null) //voxMax=voxN
                 {
                     voxMax += new CellIndex(0, 1);//voxMax.TopAdjVoxels[1];
-                   
+
                     //2.1  min(t+1)=nw
                     //S,W,SW,NW
                     if (voxS != null && voxW != null && voxSW != null && voxNW != null)
@@ -4572,7 +4560,7 @@ namespace RevitVoxelzation
                     maxFound = true;
                     if (voxW != null && voxS != null && voxSW != null)
                     {
-                        voxMin +=new CellIndex(-1, -1); //= voxMin.TopAdjVoxels[6];
+                        voxMin += new CellIndex(-1, -1); //= voxMin.TopAdjVoxels[6];
                         voxMinRight = voxS.Last();
                         voxMaxLeft = voxW.Last();
                     }
@@ -4593,21 +4581,21 @@ namespace RevitVoxelzation
                 }
             }
             //collect boundary voxels
-            
+
             //Genearte accessible region
             VoxelRectangle rect = new VoxelRectangle();
             rect.Start = new CellIndex(voxMin.Col, voxMin.Row);
             var scale2D = voxMax - voxMin;
-            scale =new CellIndex3D (scale2D.Col ,scale2D.Row ,voxelIndex);
+            scale = new CellIndex3D(scale2D.Col, scale2D.Row, voxelIndex);
             int scaleIdx = -1;
-            if(scales.ContainsKey (scale))
+            if (scales.ContainsKey(scale))
             {
-                scaleIdx = scales [scale];
+                scaleIdx = scales[scale];
             }
             else
             {
                 scaleIdx = scales.Count;
-                scales.Add(scale,scaleIdx);
+                scales.Add(scale, scaleIdx);
             }
             rect.ScaleIndex = scaleIdx;
             rect.BottomElevation = (int)bottomElev;
@@ -4620,29 +4608,29 @@ namespace RevitVoxelzation
         /// <param name="voxMin">the bottom left voxels</param>
         /// <param name="strDir">string,SW,NW,SE,NE</param>
         /// <returns>voxels, null if one or more voxels in current direction is invalid</returns>
-        private static CellIndex GetDirectionVoxel(Dictionary<CellIndex,int> voxelOriginal,HashSet<CellIndex> indexChecked, int voxelTypeIndex,  CellIndex voxMax, CellIndex voxMin, CellIndex voxMaxLeft, CellIndex voxMinRight, string strDir)
+        private static CellIndex GetDirectionVoxel(Dictionary<CellIndex, int> voxelOriginal, HashSet<CellIndex> indexChecked, int voxelTypeIndex, CellIndex voxMax, CellIndex voxMin, CellIndex voxMaxLeft, CellIndex voxMinRight, string strDir)
         {
             CellIndex voxCur = default;
             switch (strDir)
             {
                 case "NE":
-                    voxCur = voxMax+new CellIndex (1,1);
-                    if (!voxelOriginal.ContainsKey(voxCur) || voxelOriginal[voxCur] != voxelTypeIndex || indexChecked.Contains(voxCur)) 
+                    voxCur = voxMax + new CellIndex(1, 1);
+                    if (!voxelOriginal.ContainsKey(voxCur) || voxelOriginal[voxCur] != voxelTypeIndex || indexChecked.Contains(voxCur))
                         return default;
                     break;
                 case "NW":
-                    voxCur = voxMaxLeft+new CellIndex (-1,1);
+                    voxCur = voxMaxLeft + new CellIndex(-1, 1);
                     if (!voxelOriginal.ContainsKey(voxCur) || voxelOriginal[voxCur] != voxelTypeIndex || indexChecked.Contains(voxCur))
                         return default;
                     break;
                 case "SE":
-                    voxCur = voxMinRight+new CellIndex(1,-1);
+                    voxCur = voxMinRight + new CellIndex(1, -1);
                     if (!voxelOriginal.ContainsKey(voxCur) || voxelOriginal[voxCur] != voxelTypeIndex || indexChecked.Contains(voxCur))
                         return default;
                     break;
 
                 case "SW":
-                    voxCur = voxMin+new CellIndex(-1, -1); ;
+                    voxCur = voxMin + new CellIndex(-1, -1); ;
                     if (!voxelOriginal.ContainsKey(voxCur) || voxelOriginal[voxCur] != voxelTypeIndex || indexChecked.Contains(voxCur))
                         return voxCur;
                     break;
@@ -4657,7 +4645,7 @@ namespace RevitVoxelzation
         /// <param name="voxMin">the bottom left voxels</param>
         /// <param name="strDir">string,E-ease,W-west,N-north,S-south</param>
         /// <returns>voxels, null if one or more voxels in current direction is invalid</returns>
-        private static List<CellIndex> GetDirectionVoxels(Dictionary<CellIndex, int> voxelOriginal, HashSet<CellIndex> indexChecked,   int voxelTypeIndex, CellIndex voxMax, CellIndex voxMin, string strDir)
+        private static List<CellIndex> GetDirectionVoxels(Dictionary<CellIndex, int> voxelOriginal, HashSet<CellIndex> indexChecked, int voxelTypeIndex, CellIndex voxMax, CellIndex voxMin, string strDir)
         {
             int colSt = voxMin.Col;
             int colEd = voxMax.Col;
@@ -4667,53 +4655,53 @@ namespace RevitVoxelzation
             switch (strDir)
             {
                 case "E":
-                    CellIndex voxCur = voxMax+new CellIndex (1,0);
+                    CellIndex voxCur = voxMax + new CellIndex(1, 0);
                     if (!voxelOriginal.ContainsKey(voxCur) || voxelOriginal[voxCur] != voxelTypeIndex || indexChecked.Contains(voxCur))
                         return null;
                     result.Add(voxCur);
                     for (int row = rowEd - 1; row >= rowSt; row--) //search backward
                     {
-                        voxCur = voxCur+new CellIndex (0,-1);
+                        voxCur = voxCur + new CellIndex(0, -1);
                         if (!voxelOriginal.ContainsKey(voxCur) || voxelOriginal[voxCur] != voxelTypeIndex || indexChecked.Contains(voxCur))
                             return null;
                         result.Add(voxCur);
                     }
                     break;
                 case "W":
-                    voxCur = voxMin+new CellIndex (-1,0);
+                    voxCur = voxMin + new CellIndex(-1, 0);
                     if (!voxelOriginal.ContainsKey(voxCur) || voxelOriginal[voxCur] != voxelTypeIndex || indexChecked.Contains(voxCur))
-                            return null;
-                    
+                        return null;
+
                     result.Add(voxCur);
                     for (int row = rowSt + 1; row <= rowEd; row++)
                     {
-                        voxCur = voxCur+new CellIndex (0,1);
+                        voxCur = voxCur + new CellIndex(0, 1);
                         if (!voxelOriginal.ContainsKey(voxCur) || voxelOriginal[voxCur] != voxelTypeIndex || indexChecked.Contains(voxCur))
                             return null;
                         result.Add(voxCur);
                     }
                     break;
                 case "S":
-                    voxCur = voxMin+new CellIndex (0,-1);
+                    voxCur = voxMin + new CellIndex(0, -1);
                     if (!voxelOriginal.ContainsKey(voxCur) || voxelOriginal[voxCur] != voxelTypeIndex || indexChecked.Contains(voxCur))
                         return null;
                     result.Add(voxCur);
                     for (int col = colSt + 1; col <= colEd; col++)
                     {
-                        voxCur = voxCur+new CellIndex (1,0);
+                        voxCur = voxCur + new CellIndex(1, 0);
                         if (!voxelOriginal.ContainsKey(voxCur) || voxelOriginal[voxCur] != voxelTypeIndex || indexChecked.Contains(voxCur))
                             return null;
                         result.Add(voxCur);
                     }
                     break;
                 case "N":
-                    voxCur = voxMax+new CellIndex (0,1);
+                    voxCur = voxMax + new CellIndex(0, 1);
                     if (!voxelOriginal.ContainsKey(voxCur) || voxelOriginal[voxCur] != voxelTypeIndex || indexChecked.Contains(voxCur))
                         return null;
                     result.Add(voxCur);
                     for (int col = colEd - 1; col >= colSt; col--)
                     {
-                        voxCur = voxCur+new CellIndex(-1,0);
+                        voxCur = voxCur + new CellIndex(-1, 0);
                         if (!voxelOriginal.ContainsKey(voxCur) || voxelOriginal[voxCur] != voxelTypeIndex || indexChecked.Contains(voxCur))
                             return null;
                         result.Add(voxCur);
@@ -4727,9 +4715,9 @@ namespace RevitVoxelzation
         /// </summary>
         /// <param name="compVoxDoc">the compressed voxels</param>
         /// <param name="filePath">file path</param>
-        public static void SaveCompressedVoxelDocument(CompressedVoxelDocument compVoxDoc,  string filePath)
+        public static void SaveCompressedVoxelDocument(CompressedVoxelDocument compVoxDoc, string filePath)
         {
-            FileStream fs = new FileStream(filePath,FileMode.Create);
+            FileStream fs = new FileStream(filePath, FileMode.Create);
             BinaryWriter bw = new BinaryWriter(fs);
             try
             {
@@ -4742,7 +4730,7 @@ namespace RevitVoxelzation
                     bw.Write(CompressedVoxelElems2Bytes(elem));
                 }
                 bw.Flush();
-                
+
             }
             finally
             {
@@ -4760,21 +4748,21 @@ namespace RevitVoxelzation
                 //load origin
                 double x = br.ReadDouble();
                 double y = br.ReadDouble();
-                double z=br.ReadDouble();
+                double z = br.ReadDouble();
                 var origin = new Vec3(x, y, z);
                 //lode voxelsze
                 double dblVoxSize = br.ReadDouble();
                 //load scales
                 int scaleCount = br.ReadInt32();
                 List<CellIndex3D> scales = new List<CellIndex3D>();
-                for(int i=0;i<scaleCount;i++)
+                for (int i = 0; i < scaleCount; i++)
                 {
                     scales.Add(new CellIndex3D(br.ReadInt32(), br.ReadInt32(), br.ReadInt32()));
                 }
                 //load element
-                int numElem=br.ReadInt32();
+                int numElem = br.ReadInt32();
                 List<CompressedVoxelElement> elems = new List<CompressedVoxelElement>() { Capacity = numElem };
-                for(int i=0;i<=numElem -1;i++)
+                for (int i = 0; i <= numElem - 1; i++)
                 {
                     //Id
                     byte strLen = br.ReadByte();
@@ -4807,8 +4795,8 @@ namespace RevitVoxelzation
                     bool isTransport = cve.IsTransportElement;
                     bool isActive = cve.IsActive;
                     */
-                    bool isSupport=br.ReadBoolean();
-                    bool isObstruct=br.ReadBoolean();
+                    bool isSupport = br.ReadBoolean();
+                    bool isObstruct = br.ReadBoolean();
                     bool isTransport = br.ReadBoolean();
                     bool isActive = br.ReadBoolean();
                     //rectangle
@@ -4823,16 +4811,16 @@ namespace RevitVoxelzation
                     */
                     int numRects = br.ReadInt32();
                     List<VoxelRectangle> rects = new List<VoxelRectangle>();
-                    for(int j=0;j<=numRects-1;j++)
+                    for (int j = 0; j <= numRects - 1; j++)
                     {
                         var rSt = new CellIndex(br.ReadInt32(), br.ReadInt32());
-                        var rScaleIdx =br.ReadInt32();
+                        var rScaleIdx = br.ReadInt32();
                         var rBtmElev = br.ReadInt32();
-                        VoxelRectangle vRect = new VoxelRectangle() { BottomElevation = rBtmElev, Start = rSt, ScaleIndex= rScaleIdx };
+                        VoxelRectangle vRect = new VoxelRectangle() { BottomElevation = rBtmElev, Start = rSt, ScaleIndex = rScaleIdx };
                         rects.Add(vRect);
                     }
-                    CompressedVoxelElement cve = new CompressedVoxelElement() { ElementId=elemId,Category=elemCat,Name =elemName,IsActive=isActive,IsObstructElement=isObstruct,IsTransportElement =isTransport,IsSupportElement =isSupport,VoxelRectangles=rects};
-                    elems.Add (cve);
+                    CompressedVoxelElement cve = new CompressedVoxelElement() { ElementId = elemId, Category = elemCat, Name = elemName, IsActive = isActive, IsObstructElement = isObstruct, IsTransportElement = isTransport, IsSupportElement = isSupport, VoxelRectangles = rects };
+                    elems.Add(cve);
                 }
                 CompressedVoxelDocument result = new CompressedVoxelDocument();
                 result.Origin = origin;
@@ -4840,7 +4828,7 @@ namespace RevitVoxelzation
                 result.Elements = elems;
                 result.VoxelScale = scales;
                 return result;
-                
+
             }
             finally
             {
@@ -4874,7 +4862,7 @@ namespace RevitVoxelzation
         }
         public static byte[] String2Bytes(string str)
         {
-            List<byte> result=new List<byte>();
+            List<byte> result = new List<byte>();
             var stringByte = Encoding.Default.GetBytes(str);
             result.Add((byte)stringByte.Length);
             result.AddRange(stringByte);
@@ -4888,7 +4876,7 @@ namespace RevitVoxelzation
             results.AddRange(BitConverter.GetBytes(input.Z));
             return results.ToArray();
         }
-       
+
         public static byte[] Rect2Bytes(VoxelRectangle rect)
         {
             var rSt = rect.Start;
@@ -4924,7 +4912,7 @@ namespace RevitVoxelzation
         /// <param name="rectIndex">rectangle index of current rectangle</param>
         /// <param name="strideHeight">man stride height</param>
         /// <returns>the splitted accessible regions</returns>
-        public static List<AccessibleRectangle> CutSupportARwithSupVoxelRects(CompressedVoxelDocument doc,  List<AccessibleRectangle> rect,List<VoxelRectangle> cuttingRectangle,int rectIndex,double strideHeight)
+        public static List<AccessibleRectangle> CutSupportARwithSupVoxelRects(CompressedVoxelDocument doc, List<AccessibleRectangle> rect, List<VoxelRectangle> cuttingRectangle, int rectIndex, double strideHeight)
         {
             Stack<AccessibleRectangle> rect2Cut = new Stack<AccessibleRectangle>();
             foreach (var r in rect)
@@ -4936,7 +4924,7 @@ namespace RevitVoxelzation
                 if (rectNear.Index == rectIndex)//no need for self-cut
                     continue;
                 List<AccessibleRectangle> newRectangleAfterCut = new List<AccessibleRectangle>();
-                while (rect2Cut.Count>0)
+                while (rect2Cut.Count > 0)
                 {
                     //determine if the cut can be done
                     var rectOut = rect2Cut.Pop();
@@ -4991,7 +4979,7 @@ namespace RevitVoxelzation
         /// <param name="strdeHeight"></param>
         /// <param name="minPassingHeight"></param>
         /// <returns></returns>
-        public static List<AccessibleRectangle> CutSupportARwithObsVoxelRects(CompressedVoxelDocument doc, List<AccessibleRectangle> rect, List<VoxelRectangle> cuttingRectangle, int offsetIndex,double strdeHeight,double minPassingHeight)
+        public static List<AccessibleRectangle> CutSupportARwithObsVoxelRects(CompressedVoxelDocument doc, List<AccessibleRectangle> rect, List<VoxelRectangle> cuttingRectangle, int offsetIndex, double strdeHeight, double minPassingHeight)
         {
             Stack<AccessibleRectangle> rect2Cut = new Stack<AccessibleRectangle>();
             foreach (var r in rect)
@@ -5019,7 +5007,7 @@ namespace RevitVoxelzation
                     }
                     else
                     {
-                        newRectangleAfterCut.Add (rectOut);
+                        newRectangleAfterCut.Add(rectOut);
                     }
                 }
                 //push the new accessible regions back to stack
@@ -5030,11 +5018,11 @@ namespace RevitVoxelzation
             }
             return rect2Cut.ToList();
         }
-        private static bool RangeIntersects(CellIndex cixMin0,CellIndex cixMax0,double elevMin0,double elevMax0,CellIndex cixMin1,CellIndex cixMax1,double elevMin1,double elevMax1)
+        private static bool RangeIntersects(CellIndex cixMin0, CellIndex cixMax0, double elevMin0, double elevMax0, CellIndex cixMin1, CellIndex cixMax1, double elevMin1, double elevMax1)
         {
             if (cixMin0.Col <= cixMax1.Col && cixMin0.Row <= cixMax1.Row
                     && cixMax0.Col >= cixMin1.Col && cixMax0.Row >= cixMin1.Row &&
-                elevMin0 <=elevMax1 && elevMax0 >=elevMin1 )
+                elevMin0 <= elevMax1 && elevMax0 >= elevMin1)
             {
                 return true;
             }
@@ -5043,7 +5031,7 @@ namespace RevitVoxelzation
                 return false;
             }
         }
-        private static List<AccessibleRectangle> CutAccessibleRectangle(AccessibleRectangle rect2Cut,CellIndex cuttingMin,CellIndex cuttingMax)
+        private static List<AccessibleRectangle> CutAccessibleRectangle(AccessibleRectangle rect2Cut, CellIndex cuttingMin, CellIndex cuttingMax)
         {
             var rectMin = rect2Cut.Min;
             var rectMax = rect2Cut.Max;
@@ -5052,12 +5040,12 @@ namespace RevitVoxelzation
             int rowMax = rectMax.Row;
             int rowMin = rectMin.Row;
             List<AccessibleRectangle> result = new List<AccessibleRectangle>();
-            if(rectMin.Col<=cuttingMax.Col && rectMin.Row <=cuttingMax.Row && rectMax.Col >=cuttingMin.Col && rectMax.Row >=cuttingMin.Row)//can cut
+            if (rectMin.Col <= cuttingMax.Col && rectMin.Row <= cuttingMax.Row && rectMax.Col >= cuttingMin.Col && rectMax.Row >= cuttingMin.Row)//can cut
             {
                 int colCommonMin = Math.Max(rectMin.Col, cuttingMin.Col);
                 int rowCommonMin = Math.Max(rectMin.Row, cuttingMin.Row);
-                int colCommonMax = Math.Min(rectMax.Col, cuttingMax.Col); 
-                int rowCommonMax=Math.Min(rectMax.Row, cuttingMax.Row);
+                int colCommonMax = Math.Min(rectMax.Col, cuttingMax.Col);
+                int rowCommonMax = Math.Min(rectMax.Row, cuttingMax.Row);
                 //POTENTIAL rectEast, the boundary is(colCommonMax+1,rowMin)-(colMax,rowmax)
                 //rectNorth:(comCommonMin,rowCommonMax+1)-(colCommonMax,rowMax)
                 //rectWest:(colMin,rowMin)-(colCommonMin-1,rowMax)
@@ -5081,23 +5069,23 @@ namespace RevitVoxelzation
             }
             else
             {
-                result.Add (rect2Cut);
+                result.Add(rect2Cut);
             }
             return result;
         }
 
-        public static HashSet<VoxelRectangle>  FindVoxelRectanglesWithinRanges( Dictionary<CellIndex3D,List<VoxelRectangle>> searchRange,  CellIndex min,CellIndex max,int layerSt,int layerEd)
+        public static HashSet<VoxelRectangle> FindVoxelRectanglesWithinRanges(Dictionary<CellIndex3D, List<VoxelRectangle>> searchRange, CellIndex min, CellIndex max, int layerSt, int layerEd)
         {
-            HashSet <VoxelRectangle> rectFound=new HashSet<VoxelRectangle>();
+            HashSet<VoxelRectangle> rectFound = new HashSet<VoxelRectangle>();
             int colMin = min.Col;
             int colMax = max.Col;
             int rowMin = min.Row;
             int rowMax = max.Row;
-           
+
             //organize rectangles into cells
-            for (int col = colMin; col <= colMax; col ++)
+            for (int col = colMin; col <= colMax; col++)
             {
-                for (int row = rowMin; row <= rowMax; row ++)
+                for (int row = rowMin; row <= rowMax; row++)
                 {
                     for (int layer = layerSt; layer <= layerEd; layer++)
                     {
@@ -5115,7 +5103,7 @@ namespace RevitVoxelzation
             return rectFound;
         }
 
-        public static IEnumerable<AccessibleRectangle> GenereateAccessibleRectangles(VoxelRectangleManager manager,double dblStrideHeight,double dblMinPassingHeight,double dblObsAffRng)
+        public static IEnumerable<AccessibleRectangle> GenereateAccessibleRectangles(VoxelRectangleManager manager, double dblStrideHeight, double dblMinPassingHeight, double dblObsAffRng)
         {
             var supRects = manager.SupRects;
             var compVoxelDoc = manager.Doc;
@@ -5126,11 +5114,11 @@ namespace RevitVoxelzation
             {
                 foreach (var ars in GenereateAccessibleRectangles4SupportRect(supRect, manager, dblStrideHeight, dblMinPassingHeight, obsAffRng))
                 {
-                    yield return ars;   
+                    yield return ars;
                 }
             }
         }
-        public static IEnumerable<AccessibleRectangle> GenereateAccessibleRectangles4SupportRect(VoxelRectangle supportRect,  VoxelRectangleManager manager, double dblStrideHeight, double dblMinPassingHeight, int obsAffRng)
+        public static IEnumerable<AccessibleRectangle> GenereateAccessibleRectangles4SupportRect(VoxelRectangle supportRect, VoxelRectangleManager manager, double dblStrideHeight, double dblMinPassingHeight, int obsAffRng)
         {
             var compVoxelDoc = manager.Doc;
             var bigCellInterval = manager.CellBuffer;
@@ -5180,7 +5168,7 @@ namespace RevitVoxelzation
             }
         }
 
-        public static void FindAccessibleRectangleNeighbors(List<AccessibleRectangle> ars,double strideHeight,int bufferInterval)
+        public static void FindAccessibleRectangleNeighbors(List<AccessibleRectangle> ars, double strideHeight, int bufferInterval)
         {
             Dictionary<CellIndex3D, List<AccessibleRectangle>> cix_Ars = new Dictionary<CellIndex3D, List<AccessibleRectangle>>();
             List<List<CellIndex3D>> boudaryCells = new List<List<CellIndex3D>>();
@@ -5194,8 +5182,8 @@ namespace RevitVoxelzation
                 //expand arMax by 1
                 arMax += new CellIndex(1, 1);
                 //get the big index of ar
-                CellIndex minBigger =ConvertBigger_LeftInclusive( arMin,bufferInterval);
-                CellIndex maxBigger =ConvertBigger_RightInclusive(arMax,bufferInterval);
+                CellIndex minBigger = ConvertBigger_LeftInclusive(arMin, bufferInterval);
+                CellIndex maxBigger = ConvertBigger_RightInclusive(arMax, bufferInterval);
                 int layer = (int)Math.Floor(ar.Elevation / strideHeight);
 
                 //search along boundary
@@ -5204,18 +5192,18 @@ namespace RevitVoxelzation
                 int rowSt = minBigger.Row;
                 int rowEd = maxBigger.Row;
                 int colStBdry = (int)Math.Ceiling((double)arMin.Col / bufferInterval) - 1;
-                int colEdBdry = (int)Math.Floor((double)arMax.Col/ bufferInterval) ;
+                int colEdBdry = (int)Math.Floor((double)arMax.Col / bufferInterval);
                 int rowStBdry = (int)Math.Ceiling((double)arMin.Row / bufferInterval) - 1;
                 int rowEdBdry = (int)Math.Floor((double)arMax.Row / bufferInterval);
                 // add edge bottom
                 List<CellIndex3D> bdryCells = new List<CellIndex3D>();
-                for(int col=colSt;col<=colEd;col++)
+                for (int col = colSt; col <= colEd; col++)
                 {
                     CellIndex3D cix = new CellIndex3D(col, rowSt, layer);
-                    bdryCells.Add(new CellIndex3D(col,rowStBdry,layer));
-                    if(!cix_Ars.ContainsKey(cix))
+                    bdryCells.Add(new CellIndex3D(col, rowStBdry, layer));
+                    if (!cix_Ars.ContainsKey(cix))
                     {
-                        cix_Ars.Add (cix, new List<AccessibleRectangle>() { ar});
+                        cix_Ars.Add(cix, new List<AccessibleRectangle>() { ar });
                     }
                     else
                     {
@@ -5223,10 +5211,10 @@ namespace RevitVoxelzation
                     }
                 }
                 //add edge right
-                for (int row = rowSt; row <=rowEd; row++)
+                for (int row = rowSt; row <= rowEd; row++)
                 {
                     CellIndex3D cix = new CellIndex3D(colEd, row, layer);
-                    bdryCells.Add(new CellIndex3D(colEdBdry,row,layer));
+                    bdryCells.Add(new CellIndex3D(colEdBdry, row, layer));
                     if (!cix_Ars.ContainsKey(cix))
                     {
                         cix_Ars.Add(cix, new List<AccessibleRectangle>() { ar });
@@ -5251,7 +5239,7 @@ namespace RevitVoxelzation
                     }
                 }
                 //add edge left
-                for (int row = rowEd; row >=rowSt; row--)
+                for (int row = rowEd; row >= rowSt; row--)
                 {
                     CellIndex3D cix = new CellIndex3D(colSt, row, layer);
                     bdryCells.Add(new CellIndex3D(colStBdry, row, layer));
@@ -5264,17 +5252,17 @@ namespace RevitVoxelzation
                         cix_Ars[cix].Add(ar);
                     }
                 }
-                boudaryCells.Add (bdryCells);
+                boudaryCells.Add(bdryCells);
             }
             //search ars
-            for(int i=0;i<=ars.Count -1;i++)
+            for (int i = 0; i <= ars.Count - 1; i++)
             {
                 var ar = ars[i];
-                var arBdryCells=boudaryCells[i];
+                var arBdryCells = boudaryCells[i];
                 HashSet<AccessibleRectangle> rectNear = new HashSet<AccessibleRectangle>();
                 foreach (var cixOriginal in arBdryCells)
                 {
-                    for(int offLayer=-1;offLayer <=1;offLayer ++)
+                    for (int offLayer = -1; offLayer <= 1; offLayer++)
                     {
                         CellIndex3D cix = new CellIndex3D(cixOriginal.Col, cixOriginal.Row, cixOriginal.Layer + offLayer);
                         if (cix_Ars.TryGetValue(cix, out var rectsAdj))
@@ -5288,37 +5276,37 @@ namespace RevitVoxelzation
                             }
                         }
                     }
-                   
+
                 }
                 foreach (var rectNearTemp in rectNear)
                 {
-                    if(NavigableTo(ar,rectNearTemp,strideHeight))
+                    if (NavigableTo(ar, rectNearTemp, strideHeight))
                     {
                         ar.AdjacentRectangles.Add(rectNearTemp);
                     }
                 }
             }
         }
-        
-        
-        
+
+
+
         private static CellIndex ConvertBigger_LeftInclusive(CellIndex cix, int bufferInterval)
         {
             int col = (int)Math.Floor(cix.Col / (double)bufferInterval);
-            int row= (int)Math.Floor(cix.Row / (double)bufferInterval);
-            return new CellIndex(col,row);
+            int row = (int)Math.Floor(cix.Row / (double)bufferInterval);
+            return new CellIndex(col, row);
         }
         private static CellIndex ConvertBigger_RightInclusive(CellIndex cix, int bufferInterval)
         {
-            int col = (int)Math.Ceiling(cix.Col / (double)bufferInterval)-1;
-            int row = (int)Math.Ceiling(cix.Row / (double)bufferInterval)-1;
+            int col = (int)Math.Ceiling(cix.Col / (double)bufferInterval) - 1;
+            int row = (int)Math.Ceiling(cix.Row / (double)bufferInterval) - 1;
             return new CellIndex(col, row);
         }
-        private static bool NavigableTo(AccessibleRectangle source, AccessibleRectangle target,double strideHeight)
+        private static bool NavigableTo(AccessibleRectangle source, AccessibleRectangle target, double strideHeight)
         {
-           
 
-            if (Math.Abs (source.Elevation -target.Elevation)<=strideHeight)
+
+            if (Math.Abs(source.Elevation - target.Elevation) <= strideHeight)
             {
                 CellIndex minS = source.Min;
                 CellIndex maxS = source.Max + new CellIndex(1, 1);
@@ -5337,12 +5325,12 @@ namespace RevitVoxelzation
                 int colMax1 = maxT.Col;
                 int rowMax1 = maxT.Row;
 
-                if((disMaxS_MinT.Col >=0 && disMaxT_MinS.Col >=0)&& disMaxS_MinT.Row>0 && disMaxT_MinS.Row >0)
+                if ((disMaxS_MinT.Col >= 0 && disMaxT_MinS.Col >= 0) && disMaxS_MinT.Row > 0 && disMaxT_MinS.Row > 0)
                 {
                     return true;
                 }
-                
-                if ((disMaxS_MinT.Col >0 && disMaxT_MinS.Col > 0) && disMaxS_MinT.Row >= 0 && disMaxT_MinS.Row >= 0)
+
+                if ((disMaxS_MinT.Col > 0 && disMaxT_MinS.Col > 0) && disMaxS_MinT.Row >= 0 && disMaxT_MinS.Row >= 0)
                 {
                     return true;
                 }
@@ -5352,21 +5340,21 @@ namespace RevitVoxelzation
             return false;
         }
 
-        
+
     }
 
     public class VoxelRectangleManager
     {
         public CompressedVoxelDocument Doc { get; set; }
         public Dictionary<CellIndex3D, List<VoxelRectangle>> Cell_compVoxRect_Support;
-        public  Dictionary<CellIndex3D, List<VoxelRectangle>> Cell_compVoxRect_Obstruct;
-        public  List<VoxelRectangle> SupRects = new List<VoxelRectangle>();
-        public  List<VoxelRectangle> ObsRects = new List<VoxelRectangle>();
+        public Dictionary<CellIndex3D, List<VoxelRectangle>> Cell_compVoxRect_Obstruct;
+        public List<VoxelRectangle> SupRects = new List<VoxelRectangle>();
+        public List<VoxelRectangle> ObsRects = new List<VoxelRectangle>();
         public int CellBuffer { get; set; }
-        public VoxelRectangleManager(CompressedVoxelDocument doc,int cellBuffer)
+        public VoxelRectangleManager(CompressedVoxelDocument doc, int cellBuffer)
         {
             //param 
-            this.CellBuffer=cellBuffer;
+            this.CellBuffer = cellBuffer;
             this.Doc = doc;
             //use a dictionary to store element spatical occupy situation
             int bigCellInterval = 10;// the buffer is 10 times that of the voxel size
@@ -5462,26 +5450,26 @@ namespace RevitVoxelzation
         }
         public void Start()
         {
-            
+
             stopwatch.Start();
         }
         public void RecordWithoutTime(string data)
         {
             int curRec = time.Count;
-            if(curRec > 0)
+            if (curRec > 0)
             {
                 time[curRec].Add(data);
             }
             else
             {
-                time.Add(new List<object>() { data});
+                time.Add(new List<object>() { data });
             }
-            
+
         }
-        public void RecordWithoutTime(string headerText,string data)
+        public void RecordWithoutTime(string headerText, string data)
         {
-            this.header.Add (new DataColumn( headerText));
-            int curRec = time.Count-1;
+            this.header.Add(new DataColumn(headerText));
+            int curRec = time.Count - 1;
             if (curRec >= 0)
             {
                 time[curRec].Add(data);
@@ -5498,10 +5486,10 @@ namespace RevitVoxelzation
         }
         public void RecordTimeAndReStart(string headerText)
         {
-            this.header.Add(new DataColumn( headerText));
+            this.header.Add(new DataColumn(headerText));
             stopwatch.Stop();
-            var data= stopwatch.Elapsed.TotalMilliseconds;
-            int curRec = time.Count-1;
+            var data = stopwatch.Elapsed.TotalMilliseconds;
+            int curRec = time.Count - 1;
             if (curRec >= 0)
             {
                 time[curRec].Add(data);
@@ -5519,10 +5507,10 @@ namespace RevitVoxelzation
 
         public void Stop(string headerText)
         {
-            
+
             stopwatch.Stop();
             this.header.Add(new DataColumn(headerText));
-           
+
             var data = stopwatch.Elapsed.TotalMilliseconds;
             int curRec = time.Count - 1;
             if (curRec >= 0)
@@ -5538,7 +5526,7 @@ namespace RevitVoxelzation
                 this.Data = new DataTable();
                 this.Data.Columns.AddRange(this.header.ToArray());
             }
-            
+
             foreach (var t in this.time)
             {
                 this.Data.Rows.Add(t.ToArray());
@@ -5758,11 +5746,11 @@ namespace RevitVoxelzation
     }
     public static class CSV
     {
-        public static void Save(string fileName,DataTable dt)
+        public static void Save(string fileName, DataTable dt)
         {
-            StreamWriter sw = new StreamWriter(fileName,false,Encoding.Default);
+            StreamWriter sw = new StreamWriter(fileName, false, Encoding.Default);
             List<string> header = new List<string>();
-            foreach (DataColumn dc in  dt.Columns)
+            foreach (DataColumn dc in dt.Columns)
             {
                 header.Add(dc.ColumnName);
             }

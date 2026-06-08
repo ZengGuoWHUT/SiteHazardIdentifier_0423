@@ -1,13 +1,8 @@
-﻿using Autodesk.Revit.DB;
-using Braincase.GanttChart;
+﻿using Braincase.GanttChart;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Data;
-using System.Drawing;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 using Form = System.Windows.Forms.Form;
 
@@ -27,14 +22,14 @@ namespace SiteHazardIdentifier
             int combIdx = 0;
             List<string> hazardDescription = new List<string>();
             var highestLevel = CombinationHazardLevel.Low;
-            List<Work> fires=new List<Work>();
+            List<Work> fires = new List<Work>();
             dgvCombo.AllowUserToAddRows = false;
-            dgvCombo.AutoSizeColumnsMode=DataGridViewAutoSizeColumnsMode.Fill;
-            dgvCombo.Columns.Add("0","No");
-            dgvCombo.Columns.Add("1","Ignition Activity");
-            dgvCombo.Columns.Add("2","Combustible Activitis");
-            dgvCombo.Columns.Add("3","Combustible Materials");
-            dgvCombo.Columns.Add("4","Hazard Level");
+            dgvCombo.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dgvCombo.Columns.Add("0", "No");
+            dgvCombo.Columns.Add("1", "Ignition Activity");
+            dgvCombo.Columns.Add("2", "Combustible Activitis");
+            dgvCombo.Columns.Add("3", "Combustible Materials");
+            dgvCombo.Columns.Add("4", "Hazard Level");
             foreach (var combo in this.elem.Combinations)
             {
                 hazardDescription.Add(combIdx.ToString() + "\r\n" + combo.Get_Description());
@@ -42,20 +37,20 @@ namespace SiteHazardIdentifier
                 {
                     highestLevel = combo.HazardLevel;
                 }
-                if(combo.IngntionSource!=null)
+                if (combo.IngntionSource != null)
                 {
                     fires.Add(combo.IngntionSource);
                 }
-                string strIgnitionName = combo.IngntionSource == null ? "N/A" :$"{combo.IngntionSource.Id}_{combo.IngntionSource.Name}";
+                string strIgnitionName = combo.IngntionSource == null ? "N/A" : $"{combo.IngntionSource.Id}_{combo.IngntionSource.Name}";
                 string strCombWork = "N/A";
                 List<string> combWorks = new List<string>();
-                foreach(var cw in combo.CombustibleWorks)
+                foreach (var cw in combo.CombustibleWorks)
                 {
                     combWorks.Add($"{cw.Id}_{cw.Name}");
                 }
-                if(combWorks.Count > 0)
+                if (combWorks.Count > 0)
                 {
-                    strCombWork=string.Join(";",combWorks);
+                    strCombWork = string.Join(";", combWorks);
                 }
                 string strCombMat = "N/A";
                 List<string> combMat = new List<string>();
@@ -70,7 +65,7 @@ namespace SiteHazardIdentifier
 
                 int rowIdx = dgvCombo.Rows.Add(combIdx, strIgnitionName, strCombWork, strCombMat, combo.HazardLevel);
                 DataGridViewRow row = dgvCombo.Rows[rowIdx];
-                switch(combo.HazardLevel)
+                switch (combo.HazardLevel)
                 {
                     case CombinationHazardLevel.Low:
                         row.DefaultCellStyle.BackColor = System.Drawing.Color.Green;
@@ -88,22 +83,22 @@ namespace SiteHazardIdentifier
                 }
                 combIdx += 1;
             }
-              
+
             var elemPhaseString = "Element Phases:\r\n" + string.Join("\r\n", elem.GetElementPhaseString());
             var comboText = elemPhaseString + "\r\n" + "Fire Hazard Combos:\r\n" + string.Join("\r\n", hazardDescription);
             this.txtElemInfo.Text = comboText;
 
-           
+
             DateTime dtStart = DateTime.MaxValue;
-            DateTime dtFininsh=DateTime.MinValue;
-            foreach(var wk in elem.Works)
+            DateTime dtFininsh = DateTime.MinValue;
+            foreach (var wk in elem.Works)
             {
-                dtStart = (wk.Get_Start() < dtStart ? wk.Get_Start(): dtStart);
-                dtFininsh =(wk.Get_Finish(true)>dtFininsh?wk.Get_Finish(true):dtFininsh);
+                dtStart = (wk.Get_Start() < dtStart ? wk.Get_Start() : dtStart);
+                dtFininsh = (wk.Get_Finish(true) > dtFininsh ? wk.Get_Finish(true) : dtFininsh);
             }
             foreach (var fire in fires)
             {
-               
+
                 var fireSt = fire.Get_Start();
                 var fireEd = fire.Get_Finish(true);
                 if (fireSt < dtStart)
@@ -122,7 +117,7 @@ namespace SiteHazardIdentifier
             bool elemCombustible = elem.Materials.Any(c => c.Combustible);
             foreach (var phase in elem.ElemStausPeroid)
             {
-                if(phase.Item3==ElementStatus.Quiescent)
+                if (phase.Item3 == ElementStatus.Quiescent)
                 {
                     string strName = $"{phase.Item3}{i}  ";
                     if (elemCombustible)
@@ -130,34 +125,34 @@ namespace SiteHazardIdentifier
                         strName += "-Combustible!";
                     }
                     var st = phase.Item1;
-                    if(st==DateTime.MinValue)
+                    if (st == DateTime.MinValue)
                     {
                         st = dtStart;
                     }
                     var ed = phase.Item2;
-                    if(ed==DateTime.MaxValue)
+                    if (ed == DateTime.MaxValue)
                     {
                         ed = dtFininsh;
                     }
                     taskData.Add((st, ed, strName));
-                     i += 1;
+                    i += 1;
                 }
             }
             foreach (var wbs in elem.Works)
             {
-                var st = wbs.Get_Start() ;
-                var ed = wbs.Get_Finish(true) ;
+                var st = wbs.Get_Start();
+                var ed = wbs.Get_Finish(true);
                 var name = $"{wbs.Id}_{wbs.Name}";
                 if (wbs.Combustible || wbs.EmitGas)
                     name += "-Combustible!";
                 taskData.Add((st, ed, name));
 
             }
-           
-            foreach(var data in taskData.OrderBy(c => c.start))
+
+            foreach (var data in taskData.OrderBy(c => c.start))
             {
                 var st0 = data.start;
-                var end0= data.end;
+                var end0 = data.end;
                 var name = data.Item3;
                 var st = st0 - dtStart;
                 var ed = end0 - dtStart;
@@ -169,7 +164,7 @@ namespace SiteHazardIdentifier
             }
 
 
-            foreach(var fire in fires)
+            foreach (var fire in fires)
             {
                 var st = fire.Get_Start() - dtStart;
                 var ed = fire.Get_Finish(true) - dtStart;
@@ -184,19 +179,19 @@ namespace SiteHazardIdentifier
             gcWBS.Init(wbsManager);
 
             //get ignition 
-            
-            
-            
+
+
+
             gcIgnition.Init(fireManager);
-            
+
         }
     }
-    public class MyTask: Braincase.GanttChart.Task
+    public class MyTask : Braincase.GanttChart.Task
     {
         private ProjectManager Manager { get; set; }
         public MyTask(ProjectManager manager)
         {
-            this.Manager= manager;
+            this.Manager = manager;
         }
         public void SetStart(TimeSpan val)
         {

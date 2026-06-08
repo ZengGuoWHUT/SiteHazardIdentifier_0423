@@ -1,8 +1,5 @@
-﻿using Autodesk.Revit.ApplicationServices;
-using Autodesk.Revit.Attributes;
-using Autodesk.Revit.Creation;
+﻿using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
-using Autodesk.Revit.Exceptions;
 using Autodesk.Revit.UI;
 using Autodesk.Revit.UI.Selection;
 using ICSharpCode.SharpZipLib.Zip;
@@ -10,25 +7,14 @@ using NetTopologySuite.Geometries;
 using NetTopologySuite.Operation.Union;
 
 using RevitVoxelzation;
-using RevitVoxelzation;
 using System;
-using System.Collections.Generic;
 using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Linq;
-using System.Linq.Expressions;
-using System.Security.Cryptography;
-using System.Security.Policy;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Windows.Forms;
-using System.Windows.Input;
-using System.Windows.Shapes;
 using Document = Autodesk.Revit.DB.Document;
 using Line = Autodesk.Revit.DB.Line;
 using Path = System.IO.Path;
@@ -85,7 +71,7 @@ namespace SiteHazardIdentifier
                 {
                     t.Start("Visualize box");
                     double dblVoxSize = frm.Voxelizer.VoxelSize / 304.8;
-                    if(frm.LightWeightVoxelElements!=null)
+                    if (frm.LightWeightVoxelElements != null)
                     {
                         foreach (var ve in frm.LightWeightVoxelElements)
                         {
@@ -128,23 +114,23 @@ namespace SiteHazardIdentifier
                             view.SetElementOverrides(ds.Id, setting);
                             */
                             MultiVerTool.ModifyElemFillPatternId(ds, view, solidFill.Id);
-                            MultiVerTool.ModifyElemColor(ds,view,  new Color(0, 255, 0));
+                            MultiVerTool.ModifyElemColor(ds, view, new Color(0, 255, 0));
                             MultiVerTool.ModifyElemTansparency(ds, view, 50);
 
                         }
                     }
-                    else if(frm.AABBElements.Count()!=0)
+                    else if (frm.AABBElements.Count() != 0)
                     {
                         foreach (var ve in frm.AABBElements)
                         {
                             List<Solid> slds = new List<Solid>();
                             var min = ve.Min;
                             var max = ve.Max;
-                            var scale= max - min;
-                            var pt0 = new XYZ(min.X/304.8,min.Y/304.8,min.Z/304.8);
-                            var pt1 = pt0 + XYZ.BasisX * scale.X/304.8;
-                            var pt2 = pt1 + XYZ.BasisY * scale.Y/304.8;
-                            var pt3 = pt2 - XYZ.BasisX * scale.X/304.8;
+                            var scale = max - min;
+                            var pt0 = new XYZ(min.X / 304.8, min.Y / 304.8, min.Z / 304.8);
+                            var pt1 = pt0 + XYZ.BasisX * scale.X / 304.8;
+                            var pt2 = pt1 + XYZ.BasisY * scale.Y / 304.8;
+                            var pt3 = pt2 - XYZ.BasisX * scale.X / 304.8;
                             var pts = new List<XYZ>() { pt0, pt1, pt2, pt3 };
                             var loop = new CurveLoop();
                             var loops = new List<CurveLoop>() { loop };
@@ -159,7 +145,7 @@ namespace SiteHazardIdentifier
                                 Line li = Line.CreateBound(p0, p1);
                                 loop.Append(li);
                             }
-                            var sld = GeometryCreationUtilities.CreateExtrusionGeometry(loops, XYZ.BasisZ, scale.Z/304.8);
+                            var sld = GeometryCreationUtilities.CreateExtrusionGeometry(loops, XYZ.BasisZ, scale.Z / 304.8);
                             slds.Add(sld);
                             DirectShape ds = DirectShape.CreateElement(doc, new ElementId(BuiltInCategory.OST_GenericModel));
                             ds.AppendShape(slds.ToArray());
@@ -171,7 +157,7 @@ namespace SiteHazardIdentifier
                             view.SetElementOverrides(ds.Id, setting);
                             */
                             MultiVerTool.ModifyElemFillPatternId(ds, view, solidFill.Id);
-                            MultiVerTool.ModifyElemColor(ds,view,  new Color(0, 255, 0));
+                            MultiVerTool.ModifyElemColor(ds, view, new Color(0, 255, 0));
                             MultiVerTool.ModifyElemTansparency(ds, view, 50);
 
 
@@ -312,7 +298,7 @@ namespace SiteHazardIdentifier
                         List<string> hazardDescription = new List<string>();
                         CombinationHazardLevel highestLevel = new CombinationHazardLevel();
                         string[] docIdx_elemID = elemId.Split('$');
-                        ElementId rvtId =MultiVerTool.String2ElementId(docIdx_elemID[1]);
+                        ElementId rvtId = MultiVerTool.String2ElementId(docIdx_elemID[1]);
                         int combIdx = 0;
                         foreach (var combo in comboList)
                         {
@@ -324,7 +310,7 @@ namespace SiteHazardIdentifier
                             combIdx += 1;
                         }
                         _4DElement elem = null;
-                        if(frm.identifier.ElemMeshRel!=null)
+                        if (frm.identifier.ElemMeshRel != null)
                         {
                             elem = frm.identifier.ElemMeshRel[elemId];
                         }
@@ -372,7 +358,7 @@ namespace SiteHazardIdentifier
                         */
                         var ds = doc.GetElement(id);
                         MultiVerTool.ModifyElemFillPatternId(ds, view, solidFill.Id);
-                        MultiVerTool.ModifyElemColor(ds,view,  new Color(255, 0, 0));
+                        MultiVerTool.ModifyElemColor(ds, view, new Color(255, 0, 0));
                         MultiVerTool.ModifyElemTansparency(ds, view, 10);
 
                         var elem = doc.GetElement(id);
@@ -1181,7 +1167,7 @@ namespace SiteHazardIdentifier
             List<string> testBallIds = new List<string>();
             OpenFileDialog ofd = new OpenFileDialog();
             ofd.Filter = "mesh |*.fireRiskData";
-            if(ofd.ShowDialog()==DialogResult.Cancel)
+            if (ofd.ShowDialog() == DialogResult.Cancel)
             {
                 return Result.Cancelled;
             }
@@ -1220,7 +1206,7 @@ namespace SiteHazardIdentifier
                     {
                         var modeldata = sr.ReadToEnd();
                         int numElems = int.Parse(modeldata.Split(':')[1]);
-                        
+
                         sr.Close();
                     }
                 }
@@ -1229,7 +1215,7 @@ namespace SiteHazardIdentifier
                     throw new Exception("Reading file error");
                 }
             }
-            
+
             //Load elem-mat-real
             using (StreamReader sr = new StreamReader(strElemMatRel, Encoding.Default))
             {
@@ -1244,7 +1230,7 @@ namespace SiteHazardIdentifier
                 sr.Close();
             }
             //delete filre
-            Directory.Delete(tempDirPath,true);
+            Directory.Delete(tempDirPath, true);
             //link elements
             ofd = new OpenFileDialog();
             ofd.Filter = "csv file|*.csv";

@@ -1,11 +1,9 @@
 using ClassLibrary1;
 using RevitVoxelzation;
 using System.Diagnostics;
-using System.DirectoryServices.ActiveDirectory;
 using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
-using System.Web;
 
 namespace VoxelUI
 {
@@ -14,18 +12,18 @@ namespace VoxelUI
         public string modelPath = @"C:\Users\ipmpg\Desktop\WhiteWall.txt";
         private int voxSize = 200;
         private int voxHeight = 1;
-        private NamedPipeClientStream pipeClient=null;
+        private NamedPipeClientStream pipeClient = null;
         private string filePath = string.Empty;
         private string saveFilepath = string.Empty;
-        public Form1(string filePath,string voxelSize,string voxelHeight,string saveFilepath)
+        public Form1(string filePath, string voxelSize, string voxelHeight, string saveFilepath)
         {
             InitializeComponent();
-            this. filePath = filePath;
+            this.filePath = filePath;
             this.saveFilepath = saveFilepath;
-            if(filePath!=string.Empty)
+            if (filePath != string.Empty)
             {
-                this.voxSize=int.Parse(voxelSize);
-                this.voxHeight=int.Parse(voxelHeight);
+                this.voxSize = int.Parse(voxelSize);
+                this.voxHeight = int.Parse(voxelHeight);
                 modelPath = filePath;
                 this.Text = modelPath;
                 //构建一个命名管道
@@ -33,9 +31,9 @@ namespace VoxelUI
             }
         }
 
-        private  async void Form1_LoadAsync(object sender, EventArgs e)
+        private async void Form1_LoadAsync(object sender, EventArgs e)
         {
-            if(this.filePath!=string.Empty)
+            if (this.filePath != string.Empty)
             {
                 await pipeClient.ConnectAsync();
             }
@@ -54,7 +52,7 @@ namespace VoxelUI
             var boxUtils = new BoxBuilder(modelPath);
             await Task.Yield();
             //将三角形个数传递给Server端
-            if(pipeClient!=null)
+            if (pipeClient != null)
             {
                 using (var writer = new StreamWriter(pipeClient, Encoding.Default, 1024))
                 {
@@ -62,19 +60,19 @@ namespace VoxelUI
                     writer.Flush();
                 }
             }
-            
-            
+
+
             this.progressBar1.Value = 0;
             this.progressBar1.Maximum = boxUtils.NumElements;
             Stopwatch sw = Stopwatch.StartNew();
             //var boxElems = await Task.Run(() => boxUtils.GenerateBoxElementParallel(100, 1, progresser));
-            
-            var boxElems = new List<LightWeightVoxelElement>() { Capacity =boxUtils.NumElements};
-            await foreach(var elem in boxUtils.GenerateBoxElemnsAsync(voxSize, voxHeight, progresser))
+
+            var boxElems = new List<LightWeightVoxelElement>() { Capacity = boxUtils.NumElements };
+            await foreach (var elem in boxUtils.GenerateBoxElemnsAsync(voxSize, voxHeight, progresser))
             {
                 boxElems.Add(elem);
             }
-           
+
             sw.Stop();
             MessageBox.Show($"done,time elapsed:" + sw.Elapsed.TotalSeconds + "s");
             if (saveFilepath == string.Empty) //不用保存，尝试将数据传给Server，在服务器端处理
@@ -147,7 +145,7 @@ namespace VoxelUI
             this.progressBar1.Value = 0;
             this.progressBar1.Maximum = boxUtils.NumElements;
             Stopwatch sw = Stopwatch.StartNew();
-           
+
             var voxElems = new List<VoxelElement>() { Capacity = boxUtils.NumElements };
             int i = 0;
             int numEleems = boxUtils.NumElements;
@@ -156,14 +154,14 @@ namespace VoxelUI
             {
                 voxElems.Add(elem);
                 i++;
-                if(i%reportThreeshold==0 || i==numEleems) 
+                if (i % reportThreeshold == 0 || i == numEleems)
                     ((IProgress<int>)progresser).Report(i);
-                
+
             }
 
             sw.Stop();
             MessageBox.Show($"done,time elapsed:" + sw.Elapsed.TotalSeconds + "s");
-            if(saveFilepath ==string.Empty) //不用保存，尝试将数据传给Server，在服务器端处理
+            if (saveFilepath == string.Empty) //不用保存，尝试将数据传给Server，在服务器端处理
             {
                 if (pipeClient != null)//命名管道在用
                 {
@@ -190,7 +188,7 @@ namespace VoxelUI
             }
             else //尝试保存数据到saveFilePath
             {
-                using(StreamWriter saver=new StreamWriter(saveFilepath,false,Encoding.Default))
+                using (StreamWriter saver = new StreamWriter(saveFilepath, false, Encoding.Default))
                 {
                     saver.WriteLine(Vec3.Zero.ToString());
                     saver.WriteLine(this.voxSize.ToString());

@@ -1,12 +1,4 @@
-﻿using Autodesk.Revit.ApplicationServices;
-using Autodesk.Revit.Attributes;
-using Autodesk.Revit.DB;
-using Autodesk.Revit.UI;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using Autodesk.Revit.DB;
 
 namespace SiteHazardIdentifier
 {
@@ -25,7 +17,7 @@ namespace SiteHazardIdentifier
             OverrideGraphicSettings setting = view.GetElementOverrides(elem.Id);
 
 #if Revit2018
-             setting.SetProjectionFillColor(color);
+            setting.SetProjectionFillColor(color);
 #elif Revit2019 || Revit2020 || Revit2021 || Revit2022 || Revit2023 || Revit2024 || Revit2025 || Revit2026
             setting.SetSurfaceForegroundPatternColor(color);
 #endif
@@ -33,11 +25,11 @@ namespace SiteHazardIdentifier
         }
         public static void ModifyElemFillPatternId(Element elem, View view, ElementId patternId)
         {
-            
+
             OverrideGraphicSettings setting = view.GetElementOverrides(elem.Id);
 
 #if Revit2018
-             setting.SetProjectionFillPatternId(patternId);
+            setting.SetProjectionFillPatternId(patternId);
 #elif Revit2019 || Revit2020 || Revit2021 || Revit2022 || Revit2023 || Revit2024 || Revit2025 || Revit2026
             setting.SetSurfaceForegroundPatternId(patternId);
 #endif

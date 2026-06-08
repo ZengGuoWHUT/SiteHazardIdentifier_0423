@@ -1,14 +1,6 @@
 ﻿
 using RevitVoxelzation;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Linq;
-using System.Security.Cryptography;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 namespace SiteHazardIdentifier
 {
 
@@ -47,7 +39,7 @@ namespace SiteHazardIdentifier
                             else
                             {
                                 var curElem = elements.Peek();
-                                if(curElem.Solids.Count== 0)
+                                if (curElem.Solids.Count == 0)
                                 {
                                     curElem.Solids.Add(new MeshSolid(curElem, new List<Vec3>(), new List<int>()));
                                 }
@@ -135,7 +127,7 @@ namespace SiteHazardIdentifier
                 //var elems = CreateMeshElement(meshPath).ToList();
                 foreach (var elem in CreateMeshElement(meshPath))
                 {
-                    VoxelElement ve = new VoxelElement(voxDoc, elem, true, 1e-2,true);
+                    VoxelElement ve = new VoxelElement(voxDoc, elem, true, 1e-2, true);
                     timeGenGridPts += ve.timeGridPtGen;
                     timeFillVoxels += ve.timeVoxFill;
                     timeMergeVoxels += ve.timeVoxMerge;
@@ -159,7 +151,7 @@ namespace SiteHazardIdentifier
             }
         }
 
-        public static void WriteVoxelFile(string savePath,Vec3 origin,double voxelSize, List<VoxelElement> voxElems)
+        public static void WriteVoxelFile(string savePath, Vec3 origin, double voxelSize, List<VoxelElement> voxElems)
         {
             FileStream fs = new FileStream(savePath, FileMode.Create);
             using (StreamWriter sw = new StreamWriter(fs, Encoding.Default, 1024 * 1024))
@@ -169,7 +161,7 @@ namespace SiteHazardIdentifier
                 //var elems = CreateMeshElement(meshPath).ToList();
                 foreach (var ve in voxElems)
                 {
-                    
+
                     sw.WriteLine(ve.ElementId);
                     int[] strVoxelData = new int[ve.Voxels.Count * 4];
                     for (int i = 0; i < ve.Voxels.Count; i++)
@@ -188,8 +180,8 @@ namespace SiteHazardIdentifier
             }
         }
 
-      
-       
+
+
 
 
 

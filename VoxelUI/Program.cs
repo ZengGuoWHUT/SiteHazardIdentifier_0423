@@ -11,7 +11,7 @@ namespace VoxelUI
             string meshPath = "";
             string voxSize = "";
             string voxHeight = "";
-            string savePath= "";
+            string savePath = "";
             switch (args.Length)
             {
                 default:
@@ -29,17 +29,17 @@ namespace VoxelUI
                     break;
 
             }
-            if(args.Length != 0)
+            if (args.Length != 0)
             {
                 meshPath = args[0];
                 voxSize = args[1];
                 voxHeight = args[2];
             }
-           
+
             // To customize application configuration such as set high DPI settings or default font,
             // see https://aka.ms/applicationconfiguration.
             ApplicationConfiguration.Initialize();
-            Application.Run(new Form1(meshPath,voxSize,voxHeight,savePath));
+            Application.Run(new Form1(meshPath, voxSize, voxHeight, savePath));
         }
     }
 }

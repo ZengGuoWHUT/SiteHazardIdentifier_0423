@@ -1,26 +1,16 @@
-﻿using Autodesk.Revit.DB;
-using NetTopologySuite.Geometries;
-using NetTopologySuite.Index;
+﻿using NetTopologySuite.Geometries;
 using NetTopologySuite.Index.Strtree;
-using NetTopologySuite.Operation.Distance;
 using RevitVoxelzation;
 using System;
 using System.Collections.Generic;
-using System.Data;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Security.Policy;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Forms;
-using System.Windows.Shapes;
 using Polygon = NetTopologySuite.Geometries.Polygon;
 
 namespace SiteHazardIdentifier
 {
     public static class SpatialSearchTool
     {
-        public static IEnumerable<(HazardMeshElementInfo elem,double distance)> GetElementsWithinDistance(List<HazardMeshElementInfo> ignitionElems, List<HazardMeshElementInfo> elems,double distance)
+        public static IEnumerable<(HazardMeshElementInfo elem, double distance)> GetElementsWithinDistance(List<HazardMeshElementInfo> ignitionElems, List<HazardMeshElementInfo> elems, double distance)
         {
             var factory = new GeometryFactory();
             var vertices2Search = new List<Vec3>();
@@ -48,11 +38,11 @@ namespace SiteHazardIdentifier
             }
             tree.Build();
             //获得距离
-            bool[] elemScanned=new bool[elems.Count];
-            for(int i=0;i<elems.Count;i++ ) 
+            bool[] elemScanned = new bool[elems.Count];
+            for (int i = 0; i < elems.Count; i++)
             {
                 var e = elems[i];
-               
+
                 //获取三角形投影
                 List<Vec3> verticesB = e.GetVertices().ToList();
                 int[] trianglesB = e.GetTriangleIndexes().ToArray();
@@ -70,7 +60,7 @@ namespace SiteHazardIdentifier
                         foreach (var polyFound in polygonFound)
                         {
                             var disTemp = polyFound.Distance(poly);
-                            
+
                             if (disTemp <= distance)
                             {
                                 elemScanned[i] = true;
@@ -83,7 +73,7 @@ namespace SiteHazardIdentifier
             }
         }
 
-        public static IEnumerable<(HazardMeshElementInfo elem, double distance)> GetElementsWithinDistanceConsideringVertical(Work firework,List<HazardMeshElementInfo> ignitionElems, List<HazardMeshElementInfo> elems, double distance,double btmOffset,double topOffset)
+        public static IEnumerable<(HazardMeshElementInfo elem, double distance)> GetElementsWithinDistanceConsideringVertical(Work firework, List<HazardMeshElementInfo> ignitionElems, List<HazardMeshElementInfo> elems, double distance, double btmOffset, double topOffset)
         {
             var factory = new GeometryFactory();
             var polygons2Search = new List<Polygon>();
@@ -92,7 +82,7 @@ namespace SiteHazardIdentifier
             {
                 var vertices2Search = new List<Vec3>();
                 var triangles2Search = new List<int>();
-                HazardPolyData polyData = new HazardPolyData() { BtmElev = (int)ig.Min.Z, TopElev = (int)ig.Max.Z,ElemId=ig.ElementId };
+                HazardPolyData polyData = new HazardPolyData() { BtmElev = (int)ig.Min.Z, TopElev = (int)ig.Max.Z, ElemId = ig.ElementId };
                 var verticesOff = vertices2Search.Count;
                 foreach (var v in ig.GetVertices())
                 {
@@ -102,15 +92,15 @@ namespace SiteHazardIdentifier
                 {
                     triangles2Search.Add(tri + verticesOff);
                 }
-                var polyElem=  ProjectToPolygons(vertices2Search, triangles2Search.ToArray(), factory);
-                foreach(var p in polyElem)
+                var polyElem = ProjectToPolygons(vertices2Search, triangles2Search.ToArray(), factory);
+                foreach (var p in polyElem)
                 {
                     p.UserData = polyData;
                 }
                 polygons2Search.AddRange(polyElem);
             }
             // 1. 将两个模型的三角形分别投影为二维多边形列表
-             
+
             // 2. 为 polygonsA 构建 STRtree 索引
             var tree = new STRtree<Polygon>();
             foreach (var poly in polygons2Search)
@@ -135,7 +125,7 @@ namespace SiteHazardIdentifier
                 {
                     if (elemScanned[i] == true) //the element has been ignited, skip scanning
                         break;
-                   
+
 
                     var envelop = poly.EnvelopeInternal.Copy();
                     envelop.ExpandBy(distance);
@@ -163,18 +153,18 @@ namespace SiteHazardIdentifier
                                     break;
                                 }
                             }
-                            
+
                         }
                     }
-                    
+
                 }
             }
         }
 
-        public static IEnumerable<(HazardMeshElementInfo elem, double distance)> GetElementsWithinDistanceConsideringVertical_Old(List<HazardMeshElementInfo> ignitionElems, List<HazardMeshElementInfo> elems, double distanceH,double bottomOffset,double topOffset)
+        public static IEnumerable<(HazardMeshElementInfo elem, double distance)> GetElementsWithinDistanceConsideringVertical_Old(List<HazardMeshElementInfo> ignitionElems, List<HazardMeshElementInfo> elems, double distanceH, double bottomOffset, double topOffset)
         {
             List<List<int>> elemVerticalNear = new List<List<int>>();
-            foreach(var ig in ignitionElems)
+            foreach (var ig in ignitionElems)
             {
                 var btmValid = ig.Min.Z + bottomOffset;
                 var topValid = ig.Max.Z + topOffset;
@@ -182,10 +172,10 @@ namespace SiteHazardIdentifier
                 var searchMax = ig.Max + new Vec3(distanceH, distanceH, topOffset);
                 List<int> elemIdxValid = new List<int>();
                 elemVerticalNear.Add(elemIdxValid);
-                for(int i=0;i<=elems.Count -1;i++)
+                for (int i = 0; i <= elems.Count - 1; i++)
                 {
                     var elem2Scan = elems[i];
-                    if(searchMax>= elem2Scan.Min && searchMin <=elem2Scan.Max )
+                    if (searchMax >= elem2Scan.Min && searchMin <= elem2Scan.Max)
                     {
                         elemIdxValid.Add(i);
                     }
@@ -195,7 +185,7 @@ namespace SiteHazardIdentifier
             bool[] elemIgnited = new bool[elems.Count];
             //collect the triangles and vertices of thee element
             //foreach (var ig in ignitionElems)
-            for (int fireIdx=0; fireIdx <= elemVerticalNear.Count -1; fireIdx++)
+            for (int fireIdx = 0; fireIdx <= elemVerticalNear.Count - 1; fireIdx++)
             {
                 var ig = ignitionElems[fireIdx];
                 var factory = new GeometryFactory();
@@ -222,7 +212,7 @@ namespace SiteHazardIdentifier
                 }
                 tree.Build();
                 var elemIdx2Scan = elemVerticalNear[fireIdx];
-               
+
                 for (int i = 0; i < elemIdx2Scan.Count; i++)
                 {
                     var e = elems[elemIdx2Scan[i]];
@@ -237,7 +227,7 @@ namespace SiteHazardIdentifier
                     var polygonsB = ProjectToPolygons(verticesB, trianglesB, factory);
                     foreach (var poly in polygonsB)
                     {
-                       
+
                         var envelop = poly.EnvelopeInternal.Copy();
                         envelop.ExpandBy(distanceH);
                         //seearch tree
@@ -274,7 +264,7 @@ namespace SiteHazardIdentifier
                 for (int i = 0; i <= elems.Count - 1; i++)
                 {
                     var elem2Scan = elems[i];
-                    if (searchMax>= elem2Scan.Min && searchMin <= elem2Scan.Max)
+                    if (searchMax >= elem2Scan.Min && searchMin <= elem2Scan.Max)
                     {
                         elemIdxValid.Add(i);
                     }
@@ -282,10 +272,10 @@ namespace SiteHazardIdentifier
             }
             //regroup obj
             Dictionary<string, List<int>> dicObj2Ignite_FireIdx = new Dictionary<string, List<int>>();
-            for(int i=0;i<= fire_elem2Ignite.Count -1;i++)
+            for (int i = 0; i <= fire_elem2Ignite.Count - 1; i++)
             {
                 var elemOnFire = fire_elem2Ignite[i];
-                if(elemOnFire.Count !=0)
+                if (elemOnFire.Count != 0)
                 {
                     var objIdxString = string.Join(",", elemOnFire);
                     if (dicObj2Ignite_FireIdx.TryGetValue(objIdxString, out var fireIdxes))
@@ -297,18 +287,18 @@ namespace SiteHazardIdentifier
                         dicObj2Ignite_FireIdx.Add(objIdxString, new List<int> { i });
                     }
                 }
-               
+
             }
             //获得距离
             bool[] elemIgnited = new bool[elems.Count];
             //collect the triangles and vertices of thee element
             //foreach (var ig in ignitionElems)
-            foreach(var kvp in dicObj2Ignite_FireIdx)
+            foreach (var kvp in dicObj2Ignite_FireIdx)
             {
                 var igs = kvp.Value;
                 var elemIgnitedByIgs = kvp.Key.Split(',');
                 var elemIdx2Scan = new List<int>();
-                foreach(var eidx in elemIgnitedByIgs)
+                foreach (var eidx in elemIgnitedByIgs)
                 {
                     elemIdx2Scan.Add(int.Parse(eidx));
                 }
@@ -346,15 +336,15 @@ namespace SiteHazardIdentifier
                     List<Vec3> verticesB = e.GetVertices().ToList();
                     int[] trianglesB = e.GetTriangleIndexes().ToArray();
                     var polygonsB = ProjectToPolygons(verticesB, trianglesB, factory);
-                    
+
                     foreach (var poly in polygonsB)
                     {
-                        if( elemIgnited[elemIdx])//the element has been ignited, skip scanning
+                        if (elemIgnited[elemIdx])//the element has been ignited, skip scanning
                         {
                             break;
                         }
                         var envelop = poly.EnvelopeInternal.Copy();
-                        envelop.ExpandBy(distanceH);  
+                        envelop.ExpandBy(distanceH);
                         //seearch tree
                         var polygonFound = tree.Query(envelop);
                         if (polygonFound.Count != 0)
@@ -366,7 +356,7 @@ namespace SiteHazardIdentifier
                                 {
                                     elemIgnited[elemIdx] = true;
                                     yield return ((e, disTemp));
-                                    break;  
+                                    break;
                                 }
                             }
                         }
@@ -376,19 +366,19 @@ namespace SiteHazardIdentifier
             }
         }
 
-        public static IEnumerable<(int hazardWorkRank, HazardMeshElementInfo elem, double distance)> GetElementsWithinDistanceConsideringVertical3(List<(int,HazardMeshElementInfo)> wkRank_IgnitionSources, List<HazardMeshElementInfo> elems,double distanceH, double bottomOffset, double topOffset)
+        public static IEnumerable<(int hazardWorkRank, HazardMeshElementInfo elem, double distance)> GetElementsWithinDistanceConsideringVertical3(List<(int, HazardMeshElementInfo)> wkRank_IgnitionSources, List<HazardMeshElementInfo> elems, double distanceH, double bottomOffset, double topOffset)
         {
             //map ignition sourece and wkRanks
             Dictionary<HazardMeshElementInfo, List<int>> igSorce_WkRanks = new Dictionary<HazardMeshElementInfo, List<int>>();
-            int fireWorkCount = wkRank_IgnitionSources.Max(c => c.Item1)+1;
+            int fireWorkCount = wkRank_IgnitionSources.Max(c => c.Item1) + 1;
             foreach (var rnk_fireElem in wkRank_IgnitionSources)
             {
                 var fireElem = rnk_fireElem.Item2;
                 var rnk = rnk_fireElem.Item1;
                 igSorce_WkRanks.TryGetValue(fireElem, out var wkRanks);
-                if(wkRanks==null)
+                if (wkRanks == null)
                 {
-                    igSorce_WkRanks.Add(fireElem, new List<int>() {rnk });
+                    igSorce_WkRanks.Add(fireElem, new List<int>() { rnk });
                 }
                 else
                 {
@@ -396,7 +386,7 @@ namespace SiteHazardIdentifier
                 }
             }
             //build search tree for all elements
-            
+
             //collect the triangles and vertices of thee element
             var ignitionElems = igSorce_WkRanks.Keys.ToList();
             // 2. 为 polygonsA 构建 STRtree 索引
@@ -405,7 +395,7 @@ namespace SiteHazardIdentifier
             int pt = 0;
             foreach (var ig_WkRnk in igSorce_WkRanks)
             {
-                var ig= ig_WkRnk.Key;
+                var ig = ig_WkRnk.Key;
                 var wkRnks = ig_WkRnk.Value;
                 var vertices2Search = new List<Vec3>();
                 var triangles2Search = new List<int>();
@@ -418,7 +408,7 @@ namespace SiteHazardIdentifier
                     triangles2Search.Add(tri);
 
                 }
-                var hData= new HazardPolyData() {IgnitionElemRank=pt, IgnitionWorkRanks = wkRnks, BtmElev = (int)ig.Min.Z, TopElev = (int)ig.Max.Z };
+                var hData = new HazardPolyData() { IgnitionElemRank = pt, IgnitionWorkRanks = wkRnks, BtmElev = (int)ig.Min.Z, TopElev = (int)ig.Max.Z };
                 // 1. 将两个模型的三角形分别投影为二维多边形列表
                 var polygonsElems = ProjectToPolygons(vertices2Search, triangles2Search.ToArray(), factory);
                 //给三角形追加信息
@@ -435,8 +425,8 @@ namespace SiteHazardIdentifier
             for (int i = 0; i < elems.Count; i++)
             {
                 var e = elems[i];
-                var searchMin = e.Min.Z -topOffset;
-                var searchMax = e.Max.Z -bottomOffset;
+                var searchMin = e.Min.Z - topOffset;
+                var searchMax = e.Max.Z - bottomOffset;
                 //获取三角形投影
                 List<Vec3> verticesB = e.GetVertices().ToList();
                 int[] trianglesB = e.GetTriangleIndexes().ToArray();
@@ -454,21 +444,21 @@ namespace SiteHazardIdentifier
                         {
                             var data = (HazardPolyData)polyFound.UserData;
                             var igSourceElemRank = data.IgnitionElemRank;
-                            if (fireElemRank_ElemOnFireIdx[igSourceElemRank,i]==true)
+                            if (fireElemRank_ElemOnFireIdx[igSourceElemRank, i] == true)
                             {
                                 continue;
                             }
                             var fireBtmElev = data.BtmElev;
                             var fireTopElev = data.TopElev;
-                            if(fireBtmElev<=searchMax && fireTopElev>=searchMin) //elevation within reach
+                            if (fireBtmElev <= searchMax && fireTopElev >= searchMin) //elevation within reach
                             {
                                 var disTemp = polyFound.Distance(poly);
                                 if (disTemp <= distanceH) //horizonta within reach
                                 {
                                     fireElemRank_ElemOnFireIdx[igSourceElemRank, i] = true;
-                                    foreach(var fireRank in data.IgnitionWorkRanks)
+                                    foreach (var fireRank in data.IgnitionWorkRanks)
                                     {
-                                        yield return ((fireRank,e, disTemp));
+                                        yield return ((fireRank, e, disTemp));
                                     }
                                 }
                             }
@@ -533,7 +523,7 @@ namespace SiteHazardIdentifier
                 }
             }
         }
-        public static IEnumerable<(HazardAABBElementInfo elem, double distance)> GetElementsWithinDistance(List<HazardAABBElementInfo> ignitionElems, List<HazardAABBElementInfo> elems, double distanceH,double distanceBtmOffset,double distanceTopOffset)
+        public static IEnumerable<(HazardAABBElementInfo elem, double distance)> GetElementsWithinDistance(List<HazardAABBElementInfo> ignitionElems, List<HazardAABBElementInfo> elems, double distanceH, double distanceBtmOffset, double distanceTopOffset)
         {
             foreach (var elem in ignitionElems)
             {
@@ -541,7 +531,7 @@ namespace SiteHazardIdentifier
                 {
                     Vec3 min = box.Min;
                     Vec3 max = box.Max;
-                    Vec3 searchMin = min +new Vec3(-distanceH, -distanceH, distanceBtmOffset);
+                    Vec3 searchMin = min + new Vec3(-distanceH, -distanceH, distanceBtmOffset);
                     Vec3 searchMax = max + new Vec3(distanceH, distanceH, distanceTopOffset);
                     foreach (var elem2 in elems)
                     {
@@ -551,7 +541,7 @@ namespace SiteHazardIdentifier
                         {
                             if (box2.Max.X < searchMin.X || box2.Min.X > searchMax.X ||
                                 box2.Max.Y < searchMin.Y || box2.Min.Y > searchMax.Y
-                                || box2.Max.Z<searchMin.Z || box2.Min.Z>searchMax.Z)
+                                || box2.Max.Z < searchMin.Z || box2.Min.Z > searchMax.Z)
                             {
                                 continue; // No intersection
                             }
@@ -571,14 +561,14 @@ namespace SiteHazardIdentifier
             }
         }
 
-        private static double CalculateHorizontalDistance(HazardAABB box1,HazardAABB box2)
+        private static double CalculateHorizontalDistance(HazardAABB box1, HazardAABB box2)
         {
             //check if box intersects horizontally
-            Vec3 min1= box1.Min;
-            Vec3 max1=box1.Max;
-            Vec3 min2= box2.Min;
-            Vec3 max2=box2.Max;
-            if(min1.X<=max2.X && max1.X>=min2.X && min1.Y<=max2.Y && max1.Y>=min2.Y)//box intersect horizontally
+            Vec3 min1 = box1.Min;
+            Vec3 max1 = box1.Max;
+            Vec3 min2 = box2.Min;
+            Vec3 max2 = box2.Max;
+            if (min1.X <= max2.X && max1.X >= min2.X && min1.Y <= max2.Y && max1.Y >= min2.Y)//box intersect horizontally
             {
                 return 0;
             }
@@ -631,7 +621,7 @@ namespace SiteHazardIdentifier
             return polygons;
         }
 
-        
+
 
 
 
@@ -645,7 +635,7 @@ namespace SiteHazardIdentifier
 
         public string ElemId { get; set; }
     }
-    
+
 
 
     public class HazardBVHTree
@@ -818,20 +808,20 @@ namespace SiteHazardIdentifier
             foreach (var box in boxes)
             {
                 xMin = Math.Min(box.Min.X, xMin);
-                xMax = Math.Max(box.Max.X , xMax);
+                xMax = Math.Max(box.Max.X, xMax);
                 yMin = Math.Min(box.Min.Y, yMin);
                 yMax = Math.Max(box.Max.Y, yMax);
                 zMin = Math.Min(box.Min.Z, zMin);
                 zMax = Math.Max(box.Max.Z, zMax);
             }
-           
+
             this.Max = new Vec3(xMax, yMax, zMax);
             this.Min = new Vec3(xMin, yMin, zMin);
         }
-        public HazardBVHNodeBoundary(Vec3 min,Vec3 max)
+        public HazardBVHNodeBoundary(Vec3 min, Vec3 max)
         {
             this.Min = min;
-            this.Max =max;
+            this.Max = max;
         }
 
         public bool BoundaryIntersect(HazardBVHNodeBoundary other)
@@ -916,17 +906,17 @@ namespace SiteHazardIdentifier
             }
 
         }
-       
+
     }
     public enum BoxDirection
     {
-        Negative=0,//Bounding box is to the negative direction of the axis
-        Mid=1,//Bounding box intersects with current axis
-        Positive=2,//bounding box is to the right direction of the axis
+        Negative = 0,//Bounding box is to the negative direction of the axis
+        Mid = 1,//Bounding box intersects with current axis
+        Positive = 2,//bounding box is to the right direction of the axis
     }
     public class HazardAABB
     {
-        
+
         public HazardBVHNodeBoundary Box { get; set; }
         public HazardAABBElementInfo Host { get; set; }
         public Vec3 Min
@@ -947,14 +937,14 @@ namespace SiteHazardIdentifier
         public HazardAABB(Vec3 min, Vec3 max, HazardAABBElementInfo elem)
         {
             this.Host = elem;
-            this.Box=new HazardBVHNodeBoundary(min,max);
+            this.Box = new HazardBVHNodeBoundary(min, max);
         }
-        public Vec3 Center { get; set;  }
+        public Vec3 Center { get; set; }
         public bool VerticalNearFire { get; internal set; } = false;
 
         public void CalculateCenter()
         {
-            if(this.Center == null)
+            if (this.Center == null)
             {
                 this.Center = new Vec3((Min.X + Max.X) / 2, (Min.Y + Max.Y) / 2, (Min.Z + Max.Z) / 2);
             }
@@ -962,12 +952,12 @@ namespace SiteHazardIdentifier
     }
     public class HazardVoxelBox
     {
-        
+
         public HazardBoxElementInfo Host { get; set; }
         public CellIndex3D Min { get; }
-        
+
         public CellIndex3D Max { get; }
-       
+
 
         public HazardVoxelBox(CellIndex3D min, CellIndex3D max, HazardBoxElementInfo elem)
         {
@@ -975,7 +965,7 @@ namespace SiteHazardIdentifier
             this.Min = min;
             this.Max = max;
         }
-       
+
         public bool VerticalNearFire { get; internal set; } = false;
     }
 
